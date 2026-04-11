@@ -1,0 +1,5 @@
+{
+  "name": "TMO & NPS Performance Dashboard",
+  "description": "A technological dashboard for monitoring agent performance, silence times, and NPS across different queues and channels.",
+  "requestFramePermissions": []
+}

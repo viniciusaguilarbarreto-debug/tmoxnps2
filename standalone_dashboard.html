@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Dashboard Standalone</title>
+    
+    <!-- Bibliotecas via CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
+    <script src="https://unpkg.com/d3@7"></script>
+    <script src="https://unpkg.com/papaparse@5"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/framer-motion@10/dist/framer-motion.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .dashboard-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+
+        /* Tooltip BoxPlot */
+        .d3-tooltip {
+            position: absolute;
+            pointer-events: none;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+            padding: 0.75rem;
+            font-size: 0.75rem;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useEffect, useRef, useCallback } = React;
+        const { 
+            ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, 
+            Tooltip, ResponsiveContainer, Legend, LabelList, Cell, BarChart
+        } = Recharts;
+
+        // --- MOCK DATA INICIAL ---
+        const INITIAL_MOCK = [];
+        const generateMockItem = (periodo, i) => {
+            const cola = ['BANKING', 'BUYERS_COMPRA', 'POS_ENTREGA_CHAT', 'PRE_ENTREGA_CHAT', 'SECURITY_CHAT'][Math.floor(Math.random() * 5)];
+            const channel = ['CHAT', 'OFFLINE'][Math.floor(Math.random() * 2)];
+            const tmoSec = Math.floor(Math.random() * 2000);
+            const metaTmo = channel === 'OFFLINE' ? 1400 : 1700;
+            return {
+                PERIODO: periodo,
+                COLA: cola,
+                DATA: periodo === 'D-1' ? '09/04/2026' : null,
+                ASSIGN_CI_CURRENT_CHANNEL: channel,
+                USER_FAIXA_ORDEM: Math.floor(Math.random() * 2000),
+                USER_LDAP: `agent_${i % 10}`,
+                Vol: Math.floor(Math.random() * 200),
+                TMO_SEC: tmoSec,
+                META_TMO: metaTmo,
+                IMPACTO_TMO_MEDIA_MES: (tmoSec - metaTmo) / 1000,
+                QTD_PESQUISAS_NPS: Math.floor(Math.random() * 20),
+                NPS_REP: (Math.random() * 2) - 1,
+                SILENCE_DURATION_HH: Math.random() * 0.005,
+                MEDIA_SILENCIO_CHAT_AGENTE_HH: Math.random() * 0.005,
+            };
+        };
+        for(let i=0; i<20; i++) INITIAL_MOCK.push(generateMockItem('CONSOLIDADO', i));
+
+        // --- COMPONENTES ---
+
+        function Icon({ name, size = 16, className = "" }) {
+            useEffect(() => {
+                lucide.createIcons();
+            }, [name]);
+            return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
+        }
+
+        function formatDuration(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':');
+        }
+
+        // --- BOX PLOT COMPONENT ---
+        function BoxPlotChart({ data, metric, title }) {
+            const svgRef = useRef(null);
+            const tooltipRef = useRef(null);
+
+            const stats = useMemo(() => {
+                const groups = d3.group(data, d => d.COLA);
+                const result = [];
+                groups.forEach((values, key) => {
+                    const sortedValues = [...values].sort((a, b) => d3.ascending(a[metric], b[metric]));
+                    const metricValues = sortedValues.map(v => v[metric]).filter(v => v != null);
+                    if (metricValues.length === 0) return;
+                    const q1 = d3.quantile(metricValues, 0.25) || 0;
+                    const median = d3.quantile(metricValues, 0.5) || 0;
+                    const q3 = d3.quantile(metricValues, 0.75) || 0;
+                    const iqr = q3 - q1;
+                    const min = Math.max(d3.min(metricValues), q1 - 1.5 * iqr);
+                    const max = Math.min(d3.max(metricValues), q3 + 1.5 * iqr);
+                    result.push({ key, q1, median, q3, min, max, allValues: sortedValues });
+                });
+                return result;
+            }, [data, metric]);
+
+            useEffect(() => {
+                if (!svgRef.current || stats.length === 0) return;
+                const margin = { top: 20, right: 30, bottom: 60, left: 60 };
+                const width = svgRef.current.clientWidth - margin.left - margin.right;
+                const height = 350 - margin.top - margin.bottom;
+
+                const svg = d3.select(svgRef.current);
+                svg.selectAll("*").remove();
+                const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+                const tooltip = d3.select(tooltipRef.current);
+
+                const x = d3.scaleBand().range([0, width]).domain(stats.map(d => d.key)).paddingInner(1).paddingOuter(0.5);
+                g.append("g").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x))
+                    .selectAll("text").attr("transform", "translate(-10,0)rotate(-45)").style("text-anchor", "end").style("font-size", "10px").style("fill", "#64748b");
+
+                const allVals = stats.flatMap(d => d.allValues.map(v => v[metric]));
+                const y = d3.scaleLinear().domain(d3.extent(allVals)).nice().range([height, 0]);
+                g.append("g").call(d3.axisLeft(y).ticks(5)).selectAll("text").style("font-size", "10px").style("fill", "#64748b");
+
+                const color = d3.scaleOrdinal(d3.schemeTableau10);
+                const formatVal = (v) => {
+                    if (metric === 'TMO_SEC') return `${v.toFixed(0)}s`;
+                    if (metric === 'NPS_REP') return `${(v * 100).toFixed(1)}%`;
+                    return v.toFixed(2);
+                };
+
+                const boxWidth = 30;
+                stats.forEach(d => {
+                    g.append("line").attr("x1", x(d.key)).attr("x2", x(d.key)).attr("y1", y(d.min)).attr("y2", y(d.max)).attr("stroke", "#94a3b8");
+                    g.append("rect").attr("x", x(d.key) - boxWidth/2).attr("y", y(d.q3)).attr("height", y(d.q1) - y(d.q3)).attr("width", boxWidth)
+                        .attr("stroke", color(d.key)).style("fill", color(d.key)).style("opacity", 0.3)
+                        .on("mouseover", (e) => {
+                            const [mx, my] = d3.pointer(e, svgRef.current.parentElement);
+                            tooltip.style("opacity", 1).html(`<b>${d.key}</b><br>Mediana: ${formatVal(d.median)}<br>Q1: ${formatVal(d.q1)}<br>Q3: ${formatVal(d.q3)}`)
+                                .style("left", (mx + 15) + "px").style("top", (my - 15) + "px");
+                        })
+                        .on("mousemove", (e) => {
+                            const [mx, my] = d3.pointer(e, svgRef.current.parentElement);
+                            tooltip.style("left", (mx + 15) + "px").style("top", (my - 15) + "px");
+                        })
+                        .on("mouseleave", () => tooltip.style("opacity", 0));
+                    
+                    g.append("line").attr("x1", x(d.key) - boxWidth/2).attr("x2", x(d.key) + boxWidth/2).attr("y1", y(d.median)).attr("y2", y(d.median)).attr("stroke", "#1e293b").attr("stroke-width", 2);
+
+                    // Points
+                    g.selectAll(`.dot-${d.key}`).data(d.allValues).enter().append("circle")
+                        .attr("cx", () => x(d.key) - 10 + Math.random() * 20).attr("cy", v => y(v[metric])).attr("r", 3)
+                        .style("fill", color(d.key)).style("opacity", 0.5).attr("stroke", "white")
+                        .on("mouseover", (e, v) => {
+                            const [mx, my] = d3.pointer(e, svgRef.current.parentElement);
+                            tooltip.style("opacity", 1).html(`<b>${v.USER_LDAP}</b><br>Valor: ${formatVal(v[metric])}`)
+                                .style("left", (mx + 15) + "px").style("top", (my - 15) + "px");
+                        })
+                        .on("mouseleave", () => tooltip.style("opacity", 0));
+                });
+            }, [stats, metric]);
+
+            return (
+                <div className="w-full relative">
+                    <svg ref={svgRef} className="w-full h-[350px]"></svg>
+                    <div ref={tooltipRef} className="d3-tooltip opacity-0 transition-opacity duration-200"></div>
+                </div>
+            );
+        }
+
+        // --- FILTERS COMPONENT ---
+        function CollapsibleFilter({ label, options, selected, onToggle, onSelectOnly }) {
+            const [isOpen, setIsOpen] = useState(false);
+            const [search, setSearch] = useState('');
+            const filtered = options.filter(o => o.toLowerCase().includes(search.toLowerCase()));
+
+            return (
+                <div className="border border-slate-200 rounded-lg bg-white mb-2 overflow-hidden">
+                    <button onClick={() => setIsOpen(!isOpen)} className="w-full px-3 py-2 flex justify-between items-center bg-slate-50">
+                        <span className="text-[10px] font-bold uppercase text-slate-600">{label}</span>
+                        <Icon name={isOpen ? "chevron-up" : "chevron-down"} size={12} />
+                    </button>
+                    {isOpen && (
+                        <div className="p-2 space-y-2">
+                            <input type="text" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} className="w-full p-1 text-xs border rounded" />
+                            <div className="max-h-32 overflow-y-auto custom-scrollbar space-y-1">
+                                {filtered.map(opt => (
+                                    <div key={opt} onClick={(e) => e.ctrlKey ? onToggle(opt) : onSelectOnly(opt)} className={`p-1 text-[10px] rounded cursor-pointer ${selected.includes(opt) ? 'bg-indigo-100 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}>
+                                        {opt}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // --- MAIN APP ---
+        function App() {
+            const [data, setData] = useState(INITIAL_MOCK);
+            const [periodo, setPeriodo] = useState('CONSOLIDADO');
+            const [metric, setMetric] = useState('TMO_SEC');
+            const [filters, setFilters] = useState({ cola: [], channel: [], ldap: '' });
+
+            const filteredData = useMemo(() => {
+                return data.filter(d => {
+                    const mP = d.PERIODO === periodo;
+                    const mC = filters.cola.length === 0 || filters.cola.includes(d.COLA);
+                    const mCh = filters.channel.length === 0 || filters.channel.includes(d.ASSIGN_CI_CURRENT_CHANNEL);
+                    const mL = filters.ldap === '' || d.USER_LDAP.toLowerCase().includes(filters.ldap.toLowerCase());
+                    return mP && mC && mCh && mL;
+                });
+            }, [data, periodo, filters]);
+
+            const stats = useMemo(() => {
+                const vol = filteredData.reduce((a, b) => a + b.Vol, 0);
+                const tmo = filteredData.length ? filteredData.reduce((a, b) => a + b.TMO_SEC, 0) / filteredData.length : 0;
+                const npsList = filteredData.filter(d => d.NPS_REP != null);
+                const nps = npsList.length ? (npsList.reduce((a, b) => a + b.NPS_REP, 0) / npsList.length) * 100 : 0;
+                return { vol, tmo, nps };
+            }, [filteredData]);
+
+            const colas = Array.from(new Set(data.map(d => d.COLA))).sort();
+            const channels = Array.from(new Set(data.map(d => d.ASSIGN_CI_CURRENT_CHANNEL))).sort();
+
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const bstr = evt.target.result;
+                    const wb = XLSX.read(bstr, { type: 'binary' });
+                    const wsname = wb.SheetNames[0];
+                    const ws = wb.Sheets[wsname];
+                    const json = XLSX.utils.sheet_to_json(ws);
+                    
+                    const mapped = json.map(item => ({
+                        PERIODO: item.PERIODO || 'CONSOLIDADO',
+                        COLA: String(item.COLA || ''),
+                        ASSIGN_CI_CURRENT_CHANNEL: String(item.ASSIGN_CI_CURRENT_CHANNEL || ''),
+                        USER_FAIXA_ORDEM: Number(item.USER_FAIXA_ORDEM || 0),
+                        USER_LDAP: String(item.USER_LDAP || ''),
+                        Vol: Number(item.Vol || 0),
+                        TMO_SEC: typeof item.TMO_SEC === 'string' ? Number(item.TMO_SEC.replace(',', '.')) : Number(item.TMO_SEC || 0),
+                        NPS_REP: item.NPS_REP != null ? Number(String(item.NPS_REP).replace(',', '.')) : null,
+                        SILENCE_DURATION_HH: Number(item.SILENCE_DURATION_HH || 0),
+                        MEDIA_SILENCIO_CHAT_AGENTE_HH: Number(item.MEDIA_SILENCIO_CHAT_AGENTE_HH || 0),
+                    }));
+                    setData(mapped);
+                };
+                reader.readAsBinaryString(file);
+            };
+
+            return (
+                <div className="flex h-screen overflow-hidden">
+                    {/* Sidebar */}
+                    <aside className="w-64 bg-white border-r p-6 flex flex-col space-y-6">
+                        <div className="flex items-center gap-2 font-bold text-indigo-600">
+                            <Icon name="layout-dashboard" size={24} />
+                            <span>DASHBOARD</span>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Filters</h3>
+                            <input type="text" placeholder="Search LDAP..." value={filters.ldap} onChange={e => setFilters(f => ({...f, ldap: e.target.value}))} className="w-full p-2 text-xs border rounded-lg" />
+                            
+                            <CollapsibleFilter label="Queues" options={colas} selected={filters.cola} onToggle={v => setFilters(f => ({...f, cola: f.cola.includes(v) ? f.cola.filter(x => x!==v) : [...f.cola, v]}))} onSelectOnly={v => setFilters(f => ({...f, cola: [v]}))} />
+                            <CollapsibleFilter label="Channels" options={channels} selected={filters.channel} onToggle={v => setFilters(f => ({...f, channel: f.channel.includes(v) ? f.channel.filter(x => x!==v) : [...f.channel, v]}))} onSelectOnly={v => setFilters(f => ({...f, channel: [v]}))} />
+                            
+                            <button onClick={() => setFilters({cola:[], channel:[], ldap:''})} className="w-full py-2 text-[10px] font-bold text-indigo-600 border border-indigo-100 rounded-lg hover:bg-indigo-50">CLEAR ALL</button>
+                        </div>
+
+                        <div className="mt-auto pt-6 border-t">
+                            <label className="block w-full py-3 bg-indigo-600 text-white text-center rounded-xl text-xs font-bold cursor-pointer hover:bg-indigo-700 transition-colors">
+                                <Icon name="upload" size={14} className="inline mr-2" />
+                                IMPORT BASE
+                                <input type="file" className="hidden" onChange={handleFileUpload} accept=".csv,.xlsx,.xls" />
+                            </label>
+                        </div>
+                    </aside>
+
+                    {/* Main */}
+                    <main className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+                        <header className="flex justify-between items-center">
+                            <div className="flex items-center gap-4">
+                                <h1 className="text-xl font-bold text-slate-800">Performance Overview</h1>
+                                <div className="flex bg-slate-200 p-1 rounded-lg">
+                                    {['CONSOLIDADO', 'D-1'].map(p => (
+                                        <button key={p} onClick={() => setPeriodo(p)} className={`px-4 py-1 text-[10px] font-bold rounded-md ${periodo === p ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>{p}</button>
+                                    ))}
+                                </div>
+                            </div>
+                        </header>
+
+                        {/* Cards */}
+                        <div className="grid grid-cols-3 gap-6">
+                            <div className="dashboard-card p-6">
+                                <span className="text-xs text-slate-500 font-medium">Total Volume</span>
+                                <div className="text-2xl font-bold mt-1">{stats.vol.toLocaleString()}</div>
+                            </div>
+                            <div className="dashboard-card p-6">
+                                <span className="text-xs text-slate-500 font-medium">Avg TMO</span>
+                                <div className="text-2xl font-bold mt-1">{stats.tmo.toFixed(0)}s</div>
+                            </div>
+                            <div className="dashboard-card p-6">
+                                <span className="text-xs text-slate-500 font-medium">Avg NPS</span>
+                                <div className="text-2xl font-bold mt-1">{stats.nps.toFixed(1)}%</div>
+                            </div>
+                        </div>
+
+                        {/* Chart */}
+                        <div className="dashboard-card p-6">
+                            <h3 className="text-sm font-bold mb-6 flex items-center gap-2">
+                                <Icon name="bar-chart-3" size={18} className="text-indigo-600" />
+                                Distribution Analysis (Box Plot)
+                            </h3>
+                            <div className="flex gap-2 mb-4">
+                                {['TMO_SEC', 'NPS_REP', 'SILENCE_DURATION_HH'].map(m => (
+                                    <button key={m} onClick={() => setMetric(m)} className={`px-3 py-1 text-[10px] font-bold rounded ${metric === m ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>{m.split('_')[0]}</button>
+                                ))}
+                            </div>
+                            <BoxPlotChart data={filteredData} metric={metric} title="" />
+                        </div>
+
+                        {/* Table */}
+                        <div className="dashboard-card overflow-hidden">
+                            <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
+                                <h3 className="text-sm font-bold">Agent Performance</h3>
+                                <span className="text-[10px] font-mono text-slate-400">{filteredData.length} agents</span>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs">
+                                    <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold">
+                                        <tr>
+                                            <th className="p-4">Agent</th>
+                                            <th className="p-4">Queue</th>
+                                            <th className="p-4 text-center">Vol</th>
+                                            <th className="p-4 text-center">TMO</th>
+                                            <th className="p-4 text-center">NPS</th>
+                                            <th className="p-4 text-center">Silence</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y">
+                                        {filteredData.slice(0, 50).map((item, i) => (
+                                            <tr key={i} className="hover:bg-slate-50">
+                                                <td className="p-4 font-medium">{item.USER_LDAP}</td>
+                                                <td className="p-4"><span className="px-2 py-0.5 bg-slate-100 rounded text-[9px] font-bold">{item.COLA}</span></td>
+                                                <td className="p-4 text-center font-mono">{item.Vol}</td>
+                                                <td className="p-4 text-center font-mono">{formatDuration(item.TMO_SEC)}</td>
+                                                <td className="p-4 text-center font-mono">{(item.NPS_REP*100).toFixed(1)}%</td>
+                                                <td className="p-4 text-center font-mono">{formatDuration(item.SILENCE_DURATION_HH * 3600)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
