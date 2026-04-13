@@ -184,9 +184,9 @@ export default function App() {
             <>
               {/* Stats Grid */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <StatCard label="Total Volume" value={stats.totalVol.toLocaleString()} trend="+12.5%" />
-                <StatCard label="Avg TMO" value={`${stats.avgTmo.toFixed(0)}s`} trend="-5.2%" trendNegative isFlower />
-                <StatCard label="Avg NPS" value={stats.avgNps.toFixed(1)} trend="+2.1%" />
+                <StatCard label="Total Volume" value={stats.totalVol.toLocaleString()} trend="+12.5%" isTech />
+                <StatCard label="Avg TMO" value={`${stats.avgTmo.toFixed(0)}s`} trend="-5.2%" trendNegative isTech />
+                <StatCard label="Avg NPS" value={stats.avgNps.toFixed(1)} trend="+2.1%" isTech />
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -303,18 +303,21 @@ function StatCard({
   value, 
   trend, 
   trendNegative = false,
-  isFlower = false
+  isFlower = false,
+  isTech = false
 }: { 
   label: string, 
   value: string, 
   trend: string, 
   trendNegative?: boolean,
-  isFlower?: boolean
+  isFlower?: boolean,
+  isTech?: boolean
 }) {
   return (
     <div className={cn(
       "dashboard-card p-6 relative overflow-hidden group transition-all duration-500",
-      isFlower && "bg-gradient-to-br from-rose-50 to-orange-50 border-rose-100 shadow-rose-100/50"
+      isFlower && "bg-gradient-to-br from-rose-50 to-orange-50 border-rose-100 shadow-rose-100/50",
+      isTech && "bg-slate-900 border-slate-800 shadow-xl shadow-indigo-900/20"
     )}>
       {isFlower && (
         <>
@@ -339,25 +342,61 @@ function StatCard({
         </>
       )}
 
+      {isTech && (
+        <>
+          {/* Tech Clock Elements */}
+          <div className="absolute inset-0 opacity-20 pointer-events-none">
+            {/* Grid Pattern */}
+            <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(99, 102, 241, 0.15) 1px, transparent 0)', backgroundSize: '20px 20px' }} />
+            
+            {/* Rotating Gear/Clock Face */}
+            <div className="absolute -right-10 -bottom-10 w-48 h-48 text-indigo-500/30 animate-[spin_30s_linear_infinite]">
+              <svg viewBox="0 0 100 100" className="w-full h-full fill-none stroke-current stroke-[0.5]">
+                <circle cx="50" cy="50" r="45" strokeDasharray="2 4" />
+                <circle cx="50" cy="50" r="35" strokeDasharray="1 8" />
+                {[...Array(12)].map((_, i) => (
+                  <line key={i} x1="50" y1="10" x2="50" y2="15" transform={`rotate(${i * 30} 50 50)`} strokeWidth="2" />
+                ))}
+              </svg>
+            </div>
+
+            {/* Scanning Line */}
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-indigo-500/5 to-transparent h-1/2 w-full animate-[pan-y_4s_linear_infinite]" style={{ top: '-100%' }} />
+          </div>
+          
+          {/* Clock Hands (Static but techy) */}
+          <div className="absolute right-6 top-6 w-12 h-12 opacity-40">
+            <div className="absolute inset-0 border border-indigo-500/30 rounded-full" />
+            <div className="absolute top-1/2 left-1/2 w-4 h-[1px] bg-indigo-400 origin-left -rotate-45" />
+            <div className="absolute top-1/2 left-1/2 w-3 h-[1px] bg-cyan-400 origin-left rotate-[120deg]" />
+          </div>
+        </>
+      )}
+
       <div className="relative z-10">
         <p className={cn(
           "text-sm font-medium",
-          isFlower ? "text-rose-600/80" : "text-slate-500"
+          isFlower ? "text-rose-600/80" : (isTech ? "text-indigo-300/70 uppercase tracking-widest text-[10px]" : "text-slate-500")
         )}>{label}</p>
         <div className="mt-2 flex items-baseline justify-between">
           <h4 className={cn(
             "text-2xl font-bold",
-            isFlower ? "text-rose-900" : "text-slate-900"
+            isFlower ? "text-rose-900" : (isTech ? "text-white font-mono tracking-tight" : "text-slate-900")
           )}>{value}</h4>
           <span className={cn(
             "text-xs font-medium px-2 py-1 rounded-full",
             trendNegative 
-              ? (isFlower ? "bg-rose-100 text-rose-700" : "bg-rose-50 text-rose-600") 
-              : (isFlower ? "bg-emerald-100 text-emerald-700" : "bg-emerald-50 text-emerald-600")
+              ? (isFlower ? "bg-rose-100 text-rose-700" : (isTech ? "bg-rose-500/20 text-rose-400 border border-rose-500/30" : "bg-rose-50 text-rose-600")) 
+              : (isFlower ? "bg-emerald-100 text-emerald-700" : (isTech ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-emerald-50 text-emerald-600"))
           )}>
             {trend}
           </span>
         </div>
+        {isTech && (
+          <div className="mt-3 h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+            <div className="h-full bg-indigo-500 w-2/3 animate-[shimmer_2s_infinite]" />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -15,6 +15,7 @@ interface BoxPlotStats {
   q3: number;
   min: number;
   max: number;
+  mean: number;
   outliers: DashboardData[];
   allValues: DashboardData[];
   normalValues: DashboardData[];
@@ -37,6 +38,7 @@ export function BoxPlotChart({ data, metric, title }: BoxPlotChartProps) {
       const q1 = d3.quantile(metricValues, 0.25) || 0;
       const median = d3.quantile(metricValues, 0.5) || 0;
       const q3 = d3.quantile(metricValues, 0.75) || 0;
+      const mean = d3.mean(metricValues) || 0;
       const interQuantileRange = q3 - q1;
       const min = Math.max(d3.min(metricValues) || 0, q1 - 1.5 * interQuantileRange);
       const max = Math.min(d3.max(metricValues) || 0, q3 + 1.5 * interQuantileRange);
@@ -49,6 +51,7 @@ export function BoxPlotChart({ data, metric, title }: BoxPlotChartProps) {
         q1,
         median,
         q3,
+        mean,
         min,
         max,
         outliers,
@@ -155,6 +158,7 @@ export function BoxPlotChart({ data, metric, title }: BoxPlotChartProps) {
               <span class="text-slate-500">Max (Upper):</span> <span class="font-mono">${formatVal(d.max)}</span>
               <span class="text-slate-500">Q3 (75%):</span> <span class="font-mono">${formatVal(d.q3)}</span>
               <span class="text-slate-500 font-bold">Median:</span> <span class="font-mono font-bold">${formatVal(d.median)}</span>
+              <span class="text-rose-500 font-bold">Mean:</span> <span class="font-mono font-bold text-rose-600">${formatVal(d.mean)}</span>
               <span class="text-slate-500">Q1 (25%):</span> <span class="font-mono">${formatVal(d.q1)}</span>
               <span class="text-slate-500">Min (Lower):</span> <span class="font-mono">${formatVal(d.min)}</span>
             </div>
@@ -183,6 +187,20 @@ export function BoxPlotChart({ data, metric, title }: BoxPlotChartProps) {
         .attr("y2", (d: BoxPlotStats) => y(d.median))
         .attr("stroke", "#1e293b")
         .style("width", 80);
+
+    // Show the mean as a red dashed line
+    g.selectAll(".meanLines")
+      .data(stats)
+      .enter()
+      .append("line")
+        .attr("class", "meanLines")
+        .attr("x1", (d: BoxPlotStats) => (x(d.key) || 0) - boxWidth/2)
+        .attr("x2", (d: BoxPlotStats) => (x(d.key) || 0) + boxWidth/2)
+        .attr("y1", (d: BoxPlotStats) => y(d.mean))
+        .attr("y2", (d: BoxPlotStats) => y(d.mean))
+        .attr("stroke", "#ef4444")
+        .attr("stroke-width", 2)
+        .attr("stroke-dasharray", "4 2");
 
     // Add individual points with jitter
     const jitterWidth = 20;
