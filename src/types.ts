@@ -2,13 +2,10 @@ export interface DashboardData {
   PERIODO: 'CONSOLIDADO' | 'D-1';
   COLA: string;
   DATA: string | null;
-  ASSIGN_CI_CURRENT_CHANNEL: string;
   USER_FAIXA_ORDEM: number;
   USER_LDAP: string;
-  MANAGEMENT_TYPE_REASON: string;
-  OUTGOING_FLAG_EVENT_NAME: string;
-  Vol: number;
-  TMO_HH: number;
+  VOL: number;
+  TMO_HH: string;
   TMO_SEC: number;
   META_TMO: number;
   IMPACTO_TMO_MEDIA_MES: number;
@@ -22,6 +19,5 @@ export interface DashboardData {
 
 export interface FilterState {
   cola: string[];
-  channel: string[];
   ldap: string;
 }

@@ -48,7 +48,7 @@ export function VolumeHistogram({ data }: ChartProps) {
       }
       groups[range].agents.add(item.USER_LDAP);
       groups[range].totalTmo += item.TMO_SEC;
-      groups[range].totalSilence += item.MEDIA_SILENCIO_CHAT_AGENTE_HH * 3600; // Convert to seconds
+      groups[range].totalSilence += item.MEDIA_SILENCIO_CHAT_AGENTE_HH;
       groups[range].count += 1;
 
       if (item.NPS_REP !== null) {
@@ -128,10 +128,12 @@ export function VolumeHistogram({ data }: ChartProps) {
                 fontSize: '12px',
                 boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
               }}
-              formatter={(value: number, name: string) => [
-                value.toFixed(name.includes('Count') ? 0 : 2) + (name.includes('Count') ? '' : 's'), 
-                name
-              ]}
+              formatter={(value: number, name: string) => {
+                if (name.includes('NPS')) return [`${value.toFixed(1).replace('.', ',')}%`, name];
+                if (name.includes('Silence')) return [`${value.toFixed(1).replace('.', ',')}s`, name];
+                if (name.includes('Count')) return [value.toFixed(0), name];
+                return [value.toFixed(2), name];
+              }}
             />
             <Legend 
               verticalAlign="top" 
@@ -149,9 +151,9 @@ export function VolumeHistogram({ data }: ChartProps) {
             />
             <Line 
               yAxisId="right"
-              name="Avg TMO"
+              name="Avg NPS"
               type="monotone" 
-              dataKey="avgTmo" 
+              dataKey="avgNps" 
               stroke="#f43f5e" 
               strokeWidth={2}
               dot={{ r: 3, fill: '#f43f5e', strokeWidth: 1, stroke: '#fff' }}
@@ -159,7 +161,7 @@ export function VolumeHistogram({ data }: ChartProps) {
               <LabelList 
                 dataKey="avgNps" 
                 position="top" 
-                formatter={(val: number) => val !== null ? `${val.toFixed(1)}%` : ''}
+                formatter={(val: number) => val !== null ? `${val.toFixed(1).replace('.', ',')}%` : ''}
                 style={{ fontSize: '10px', fill: '#f43f5e', fontWeight: 'bold' }}
               />
             </Line>
@@ -195,7 +197,7 @@ export function SilenceChart({ data }: ChartProps) {
 
     return Object.values(groups).map(g => ({
       name: g.name,
-      avgSilence: (g.silence / g.count) * 3600 // Convert to seconds for better visualization
+      avgSilence: g.silence / g.count
     })).sort((a, b) => b.avgSilence - a.avgSilence);
   }, [data]);
 

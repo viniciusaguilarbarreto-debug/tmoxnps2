@@ -62,10 +62,11 @@ export function DataTable({ data }: DataTableProps) {
           <tr className="bg-slate-50">
             <HeaderCell label="Agent" columnKey="USER_LDAP" onSort={requestSort} icon={<SortIcon columnKey="USER_LDAP" />} />
             <HeaderCell label="Queue" columnKey="COLA" onSort={requestSort} icon={<SortIcon columnKey="COLA" />} />
-            <HeaderCell label="Volume" columnKey="Vol" onSort={requestSort} icon={<SortIcon columnKey="Vol" />} />
+            <HeaderCell label="Volume" columnKey="VOL" onSort={requestSort} icon={<SortIcon columnKey="VOL" />} />
             <HeaderCell label="TMO" columnKey="TMO_SEC" onSort={requestSort} icon={<SortIcon columnKey="TMO_SEC" />} />
             <HeaderCell label="NPS" columnKey="NPS_REP" onSort={requestSort} icon={<SortIcon columnKey="NPS_REP" />} />
             <HeaderCell label="Silence" columnKey="SILENCE_DURATION_HH" onSort={requestSort} icon={<SortIcon columnKey="SILENCE_DURATION_HH" />} />
+            <HeaderCell label="Avg Silence" columnKey="MEDIA_SILENCIO_CHAT_AGENTE_HH" onSort={requestSort} icon={<SortIcon columnKey="MEDIA_SILENCIO_CHAT_AGENTE_HH" />} />
             <HeaderCell label="Surveys" columnKey="QTD_PESQUISAS_NPS" onSort={requestSort} icon={<SortIcon columnKey="QTD_PESQUISAS_NPS" />} />
             <HeaderCell label="Impact" columnKey="IMPACTO_TMO_MEDIA_MES" onSort={requestSort} icon={<SortIcon columnKey="IMPACTO_TMO_MEDIA_MES" />} />
           </tr>
@@ -79,7 +80,7 @@ export function DataTable({ data }: DataTableProps) {
                   {item.COLA}
                 </span>
               </td>
-              <td className="data-grid-cell font-mono text-xs">{item.Vol}</td>
+              <td className="data-grid-cell font-mono text-xs">{item.VOL}</td>
               <td className="data-grid-cell font-mono text-xs">{formatDuration(item.TMO_SEC)}</td>
               <td className="data-grid-cell">
                 {item.NPS_REP !== null ? (
@@ -90,7 +91,8 @@ export function DataTable({ data }: DataTableProps) {
                   <span className="text-slate-300">—</span>
                 )}
               </td>
-              <td className="data-grid-cell font-mono text-xs">{formatDuration(item.SILENCE_DURATION_HH * 3600)}</td>
+              <td className="data-grid-cell font-mono text-xs">{formatDuration(item.SILENCE_DURATION_HH)}</td>
+              <td className="data-grid-cell font-mono text-xs">{formatDuration(item.MEDIA_SILENCIO_CHAT_AGENTE_HH)}</td>
               <td className="data-grid-cell font-mono text-xs">{item.QTD_PESQUISAS_NPS}</td>
               <td className="data-grid-cell">
                 <span className={`font-mono text-xs ${item.IMPACTO_TMO_MEDIA_MES >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>

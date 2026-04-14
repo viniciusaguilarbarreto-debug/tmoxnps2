@@ -11,7 +11,8 @@ import {
   ChevronRight,
   BarChart3,
   Table as TableIcon,
-  Clock
+  Clock,
+  Target
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -23,6 +24,7 @@ import { DataTable } from './components/DataTable';
 import { Filters } from './components/Filters';
 import { FileUploader } from './components/FileUploader';
 import { BoxPlotChart } from './components/BoxPlotChart';
+import { IdealTmoAnalysis } from './components/IdealTmoAnalysis';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -30,13 +32,12 @@ function cn(...inputs: ClassValue[]) {
 
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'data'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'data' | 'analysis'>('dashboard');
   const [dashboardData, setDashboardData] = useState<DashboardData[]>(MOCK_DATA);
   const [periodo, setPeriodo] = useState<'CONSOLIDADO' | 'D-1'>('CONSOLIDADO');
   const [boxPlotMetric, setBoxPlotMetric] = useState<'TMO_SEC' | 'NPS_REP' | 'SILENCE_DURATION_HH'>('TMO_SEC');
   const [filters, setFilters] = useState<FilterState>({
     cola: [],
-    channel: [],
     ldap: ''
   });
 
@@ -44,9 +45,8 @@ export default function App() {
     return dashboardData.filter(item => {
       const matchPeriodo = item.PERIODO === periodo;
       const matchCola = filters.cola.length === 0 || filters.cola.includes(item.COLA);
-      const matchChannel = filters.channel.length === 0 || filters.channel.includes(item.ASSIGN_CI_CURRENT_CHANNEL);
       const matchLdap = filters.ldap === '' || item.USER_LDAP.toLowerCase().includes(filters.ldap.toLowerCase());
-      return matchPeriodo && matchCola && matchChannel && matchLdap;
+      return matchPeriodo && matchCola && matchLdap;
     });
   }, [dashboardData, filters, periodo]);
 
@@ -55,12 +55,11 @@ export default function App() {
   };
 
   const stats = useMemo(() => {
-    const totalVol = filteredData.reduce((acc, curr) => acc + curr.Vol, 0);
+    const totalVol = filteredData.reduce((acc, curr) => acc + curr.VOL, 0);
     const avgTmo = filteredData.length > 0 
       ? filteredData.reduce((acc, curr) => acc + curr.TMO_SEC, 0) / filteredData.length 
       : 0;
     
-    // NPS in the new structure is -1 to 1. Let's show it as -100 to 100 for standard NPS score
     const npsData = filteredData.filter(d => d.NPS_REP !== null);
     const avgNps = npsData.length > 0
       ? (npsData.reduce((acc, curr) => acc + (curr.NPS_REP || 0), 0) / npsData.length) * 100
@@ -121,6 +120,13 @@ export default function App() {
             isOpen={isSidebarOpen} 
             onClick={() => setActiveTab('data')}
           />
+          <SidebarItem 
+            icon={<Target size={20} />} 
+            label="TMO Ideal" 
+            active={activeTab === 'analysis'} 
+            isOpen={isSidebarOpen} 
+            onClick={() => setActiveTab('analysis')}
+          />
           <SidebarItem icon={<Users size={20} />} label="Agents" isOpen={isSidebarOpen} />
           <SidebarItem icon={<MessageSquare size={20} />} label="Channels" isOpen={isSidebarOpen} />
           <SidebarItem icon={<Settings size={20} />} label="Settings" isOpen={isSidebarOpen} />
@@ -180,7 +186,7 @@ export default function App() {
 
         {/* Scrollable Area */}
         <div className="flex-1 overflow-y-auto p-8 space-y-8">
-          {activeTab === 'dashboard' ? (
+          {activeTab === 'dashboard' && (
             <>
               {/* Stats Grid */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -249,7 +255,13 @@ export default function App() {
                 </div>
               </div>
             </>
-          ) : (
+          )}
+
+          {activeTab === 'analysis' && (
+            <IdealTmoAnalysis data={filteredData} />
+          )}
+
+          {activeTab === 'data' && (
             <div className="max-w-4xl mx-auto space-y-8">
               <div className="dashboard-card p-8">
                 <div className="mb-6">

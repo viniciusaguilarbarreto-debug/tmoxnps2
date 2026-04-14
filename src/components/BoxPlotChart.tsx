@@ -115,9 +115,10 @@ export function BoxPlotChart({ data, metric, title }: BoxPlotChartProps) {
       if (metric === 'TMO_SEC') return `${v.toFixed(0)}s`;
       if (metric === 'NPS_REP') return `${(v * 100).toFixed(1)}%`;
       if (metric === 'SILENCE_DURATION_HH') {
-        const h = Math.floor(v);
-        const m = Math.floor((v * 60) % 60);
-        return `${h}h ${m}m`;
+        const h = Math.floor(v / 3600);
+        const m = Math.floor((v % 3600) / 60);
+        const s = Math.floor(v % 60);
+        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
       }
       return v.toFixed(2);
     };
@@ -224,8 +225,8 @@ export function BoxPlotChart({ data, metric, title }: BoxPlotChartProps) {
               <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
                 <span class="text-slate-500">TMO:</span> <span class="font-mono">${d.TMO_SEC.toFixed(0)}s</span>
                 <span class="text-slate-500">NPS:</span> <span class="font-mono">${d.NPS_REP !== null ? (d.NPS_REP * 100).toFixed(1) : '—'}%</span>
-                <span class="text-slate-500">Silence:</span> <span class="font-mono">${(d.SILENCE_DURATION_HH * 60).toFixed(0)}m</span>
-                <span class="text-slate-500">Volume:</span> <span class="font-mono">${d.Vol}</span>
+                <span class="text-slate-500">Silence:</span> <span class="font-mono">${formatVal(d.SILENCE_DURATION_HH)}</span>
+                <span class="text-slate-500">Volume:</span> <span class="font-mono">${d.VOL}</span>
               </div>
             `)
             .style("left", (mx + 15) + "px")

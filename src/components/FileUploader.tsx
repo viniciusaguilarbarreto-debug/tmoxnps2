@@ -58,11 +58,25 @@ export function FileUploader({ onDataLoaded }: FileUploaderProps) {
   };
 
   const parseNum = (val: any): number => {
+    if (val === undefined || val === null || val === '') return 0;
     if (typeof val === 'string') {
+      const isPercent = val.includes('%');
       const cleaned = val.replace(/[^\d,.-]/g, '').replace(',', '.');
-      return Number(cleaned);
+      let num = Number(cleaned);
+      if (isPercent) num = num / 100;
+      return isNaN(num) ? 0 : num;
     }
     return Number(val || 0);
+  };
+
+  const parseTime = (val: any): number => {
+    if (!val || typeof val !== 'string') return 0;
+    const parts = val.split(':');
+    if (parts.length === 3) {
+      const [h, m, s] = parts.map(v => Number(v.trim()));
+      return (isNaN(h) ? 0 : h * 3600) + (isNaN(m) ? 0 : m * 60) + (isNaN(s) ? 0 : s);
+    }
+    return 0;
   };
 
   const mapToDashboardData = (data: any[]): DashboardData[] => {
@@ -70,13 +84,10 @@ export function FileUploader({ onDataLoaded }: FileUploaderProps) {
       PERIODO: item.PERIODO || 'CONSOLIDADO',
       COLA: String(item.COLA || ''),
       DATA: item.DATA ? String(item.DATA) : null,
-      ASSIGN_CI_CURRENT_CHANNEL: String(item.ASSIGN_CI_CURRENT_CHANNEL || ''),
       USER_FAIXA_ORDEM: parseNum(item.USER_FAIXA_ORDEM),
       USER_LDAP: String(item.USER_LDAP || ''),
-      MANAGEMENT_TYPE_REASON: String(item.MANAGEMENT_TYPE_REASON || ''),
-      OUTGOING_FLAG_EVENT_NAME: String(item.OUTGOING_FLAG_EVENT_NAME || ''),
-      Vol: parseNum(item.Vol),
-      TMO_HH: parseNum(item.TMO_HH),
+      VOL: parseNum(item.VOL || item.Vol),
+      TMO_HH: String(item.TMO_HH || '00:00:00'),
       TMO_SEC: parseNum(item.TMO_SEC),
       META_TMO: parseNum(item.META_TMO),
       IMPACTO_TMO_MEDIA_MES: parseNum(item.IMPACTO_TMO_MEDIA_MES),
@@ -84,8 +95,8 @@ export function FileUploader({ onDataLoaded }: FileUploaderProps) {
       NPS_REP: item.NPS_REP !== undefined && item.NPS_REP !== null ? parseNum(item.NPS_REP) : null,
       META_NPS_REP: item.META_NPS_REP !== undefined && item.META_NPS_REP !== null ? parseNum(item.META_NPS_REP) : null,
       IMPACTO_NPS_META_COLA: parseNum(item.IMPACTO_NPS_META_COLA),
-      SILENCE_DURATION_HH: parseNum(item.SILENCE_DURATION_HH),
-      MEDIA_SILENCIO_CHAT_AGENTE_HH: parseNum(item.MEDIA_SILENCIO_CHAT_AGENTE_HH),
+      SILENCE_DURATION_HH: parseTime(item.SILENCE_DURATION_HH),
+      MEDIA_SILENCIO_CHAT_AGENTE_HH: parseTime(item.MEDIA_SILENCIO_CHAT_AGENTE_HH),
     }));
   };
 
