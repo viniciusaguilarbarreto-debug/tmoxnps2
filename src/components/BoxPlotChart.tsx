@@ -82,8 +82,8 @@ export function BoxPlotChart({ data, metric, title }: BoxPlotChartProps) {
     const x = d3.scaleBand<string>()
       .range([0, width])
       .domain(stats.map(d => d.key))
-      .paddingInner(1)
-      .paddingOuter(0.5);
+      .paddingInner(0.4)
+      .paddingOuter(0.3);
 
     g.append("g")
       .attr("transform", `translate(0,${height})`)
@@ -97,9 +97,10 @@ export function BoxPlotChart({ data, metric, title }: BoxPlotChartProps) {
     // Y scale
     const allMetricVals = stats.flatMap(d => d.allValues.map(v => v[metric] as number));
     const [minVal, maxVal] = d3.extent(allMetricVals);
+    
+    // Tighten the Y axis to the data range
     const y = d3.scaleLinear()
-      .domain([minVal || 0, maxVal || 0] as [number, number])
-      .nice()
+      .domain([(minVal as any as number) * 0.95, (maxVal as any as number) * 1.05])
       .range([height, 0]);
 
     g.append("g")
@@ -123,33 +124,79 @@ export function BoxPlotChart({ data, metric, title }: BoxPlotChartProps) {
       return v.toFixed(2);
     };
 
+    // Violin Plot implementation
+    // KDE functions
+    function kernelDensityEstimator(kernel: (v: number) => number, X: number[]) {
+      return function(V: number[]) {
+        return X.map(x => [x, d3.mean(V, v => kernel(x - v)) || 0]);
+      };
+    }
+    function kernelEpanechnikov(k: number) {
+      return function(v: number) {
+        return Math.abs(v /= k) <= 1 ? 0.75 * (1 - v * v) / k : 0;
+      };
+    }
+
+    const violinWidth = x.bandwidth() * 0.8;
+    const resolution = 40; // number of points for the violin shape
+    const yDomain = y.domain();
+    const yStep = (yDomain[1] - yDomain[0]) / resolution;
+    const xPoints = d3.range(yDomain[0], yDomain[1] + yStep, yStep);
+
+    stats.forEach(group => {
+      const values = group.allValues.map(d => d[metric] as number);
+      const kde = kernelDensityEstimator(kernelEpanechnikov(yStep * 4), xPoints);
+      const density = kde(values) as [number, number][];
+
+      // Find the maximum density to scale the violin width
+      const maxNum = d3.max(density, d => d[1]) || 1;
+
+      const xNum = d3.scaleLinear()
+        .range([0, violinWidth / 2])
+        .domain([0, maxNum]);
+
+      g.append("path")
+        .datum(density)
+        .attr("class", "violin")
+        .style("stroke", color(group.key))
+        .style("stroke-width", 1)
+        .style("fill", color(group.key))
+        .style("opacity", 0.3)
+        .attr("d", d3.area()
+          .x0(d => (x(group.key) || 0) + x.bandwidth()/2 - xNum(d[1]))
+          .x1(d => (x(group.key) || 0) + x.bandwidth()/2 + xNum(d[1]))
+          .y(d => y(d[0]))
+          .curve(d3.curveCatmullRom)
+        );
+    });
+
     // Show the main vertical line
     g.selectAll(".vertLines")
       .data(stats)
       .enter()
       .append("line")
         .attr("class", "vertLines")
-        .attr("x1", (d: BoxPlotStats) => (x(d.key) || 0))
-        .attr("x2", (d: BoxPlotStats) => (x(d.key) || 0))
+        .attr("x1", (d: BoxPlotStats) => (x(d.key) || 0) + x.bandwidth()/2)
+        .attr("x2", (d: BoxPlotStats) => (x(d.key) || 0) + x.bandwidth()/2)
         .attr("y1", (d: BoxPlotStats) => y(d.min))
         .attr("y2", (d: BoxPlotStats) => y(d.max))
         .attr("stroke", "#94a3b8")
         .style("width", 40);
 
     // rectangle for the main box
-    const boxWidth = 40;
+    const boxWidth = Math.min(30, x.bandwidth() * 0.5);
     g.selectAll(".boxes")
       .data(stats)
       .enter()
       .append("rect")
         .attr("class", "boxes")
-        .attr("x", (d: BoxPlotStats) => (x(d.key) || 0) - boxWidth/2)
+        .attr("x", (d: BoxPlotStats) => (x(d.key) || 0) + x.bandwidth()/2 - boxWidth/2)
         .attr("y", (d: BoxPlotStats) => y(d.q3))
         .attr("height", (d: BoxPlotStats) => y(d.q1) - y(d.q3))
         .attr("width", boxWidth)
         .attr("stroke", (d: BoxPlotStats) => color(d.key))
         .style("fill", (d: BoxPlotStats) => color(d.key))
-        .style("opacity", 0.3)
+        .style("opacity", 0.5)
         .on("mouseover", (event: MouseEvent, d: BoxPlotStats) => {
           const [mx, my] = d3.pointer(event, svgRef.current?.parentElement);
           tooltip.transition().duration(200).style("opacity", .9);
@@ -182,8 +229,8 @@ export function BoxPlotChart({ data, metric, title }: BoxPlotChartProps) {
       .enter()
       .append("line")
         .attr("class", "medianLines")
-        .attr("x1", (d: BoxPlotStats) => (x(d.key) || 0) - boxWidth/2)
-        .attr("x2", (d: BoxPlotStats) => (x(d.key) || 0) + boxWidth/2)
+        .attr("x1", (d: BoxPlotStats) => (x(d.key) || 0) + x.bandwidth()/2 - boxWidth/2)
+        .attr("x2", (d: BoxPlotStats) => (x(d.key) || 0) + x.bandwidth()/2 + boxWidth/2)
         .attr("y1", (d: BoxPlotStats) => y(d.median))
         .attr("y2", (d: BoxPlotStats) => y(d.median))
         .attr("stroke", "#1e293b")
@@ -195,52 +242,13 @@ export function BoxPlotChart({ data, metric, title }: BoxPlotChartProps) {
       .enter()
       .append("line")
         .attr("class", "meanLines")
-        .attr("x1", (d: BoxPlotStats) => (x(d.key) || 0) - boxWidth/2)
-        .attr("x2", (d: BoxPlotStats) => (x(d.key) || 0) + boxWidth/2)
+        .attr("x1", (d: BoxPlotStats) => (x(d.key) || 0) + x.bandwidth()/2 - boxWidth/2)
+        .attr("x2", (d: BoxPlotStats) => (x(d.key) || 0) + x.bandwidth()/2 + boxWidth/2)
         .attr("y1", (d: BoxPlotStats) => y(d.mean))
         .attr("y2", (d: BoxPlotStats) => y(d.mean))
         .attr("stroke", "#ef4444")
         .attr("stroke-width", 2)
         .attr("stroke-dasharray", "4 2");
-
-    // Add individual points with jitter
-    const jitterWidth = 20;
-    stats.forEach(group => {
-      g.selectAll(`points-${group.key}`)
-        .data(group.allValues)
-        .enter()
-        .append("circle")
-          .attr("cx", () => (x(group.key) || 0) - jitterWidth/2 + Math.random() * jitterWidth)
-          .attr("cy", (d: DashboardData) => y(d[metric] as number))
-          .attr("r", 4)
-          .style("fill", color(group.key))
-          .style("opacity", 0.6)
-          .attr("stroke", "white")
-          .style("stroke-width", 1)
-          .on("mouseover", (event: MouseEvent, d: DashboardData) => {
-            const [mx, my] = d3.pointer(event, svgRef.current?.parentElement);
-            tooltip.transition().duration(200).style("opacity", .9);
-            tooltip.html(`
-              <div class="font-bold text-indigo-600 mb-1 border-b pb-1">${d.USER_LDAP}</div>
-              <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
-                <span class="text-slate-500">TMO:</span> <span class="font-mono">${d.TMO_SEC.toFixed(0)}s</span>
-                <span class="text-slate-500">NPS:</span> <span class="font-mono">${d.NPS_REP !== null ? (d.NPS_REP * 100).toFixed(1) : '—'}%</span>
-                <span class="text-slate-500">Silence:</span> <span class="font-mono">${formatVal(d.SILENCE_DURATION_HH)}</span>
-                <span class="text-slate-500">Volume:</span> <span class="font-mono">${d.VOL}</span>
-              </div>
-            `)
-            .style("left", (mx + 15) + "px")
-            .style("top", (my - 15) + "px");
-          })
-          .on("mousemove", (event: MouseEvent) => {
-            const [mx, my] = d3.pointer(event, svgRef.current?.parentElement);
-            tooltip.style("left", (mx + 15) + "px")
-                   .style("top", (my - 15) + "px");
-          })
-          .on("mouseleave", () => {
-            tooltip.transition().duration(500).style("opacity", 0);
-          });
-    });
 
   }, [stats, metric]);
 

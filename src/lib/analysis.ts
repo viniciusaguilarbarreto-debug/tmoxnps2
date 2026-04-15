@@ -6,6 +6,7 @@ export interface TmoRangeStats {
   rangeEnd: number;
   avgNps: number | null;
   avgTmo: number;
+  avgSilence: number;
   metaTmo: number;
   metaNps: number | null;
   volume: number;
@@ -23,6 +24,13 @@ export interface ExecutiveSummaryItem {
   recommendation: string;
 }
 
+export function formatSeconds(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':');
+}
+
 export function calculateIdealTmo(data: DashboardData[]) {
   const colas = Array.from(new Set(data.map(d => d.COLA)));
   const rangeSize = 200; // Standard range size
@@ -33,6 +41,7 @@ export function calculateIdealTmo(data: DashboardData[]) {
     const colaData = data.filter(d => d.COLA === cola);
     const ranges: Record<number, { 
       tmoSum: number, 
+      silenceSum: number,
       npsSum: number, 
       npsCount: number, 
       volSum: number, 
@@ -46,6 +55,7 @@ export function calculateIdealTmo(data: DashboardData[]) {
       if (!ranges[rangeStart]) {
         ranges[rangeStart] = { 
           tmoSum: 0, 
+          silenceSum: 0,
           npsSum: 0, 
           npsCount: 0, 
           volSum: 0, 
@@ -55,6 +65,7 @@ export function calculateIdealTmo(data: DashboardData[]) {
         };
       }
       ranges[rangeStart].tmoSum += d.TMO_SEC;
+      ranges[rangeStart].silenceSum += d.SILENCE_DURATION_HH;
       ranges[rangeStart].volSum += d.VOL;
       ranges[rangeStart].surveysSum += d.QTD_PESQUISAS_NPS;
       if (d.NPS_REP !== null) {
@@ -63,19 +74,23 @@ export function calculateIdealTmo(data: DashboardData[]) {
       }
     });
 
-    const colaStats: TmoRangeStats[] = Object.entries(ranges).map(([start, r]) => ({
-      cola,
-      rangeStart: Number(start),
-      rangeEnd: Number(start) + rangeSize,
-      avgNps: r.npsCount > 0 ? r.npsSum / r.npsCount : null,
-      avgTmo: r.tmoSum / (colaData.filter(d => Math.floor(d.TMO_SEC / rangeSize) * rangeSize === Number(start)).length),
-      metaTmo: r.metaTmo,
-      metaNps: r.metaNps,
-      volume: r.volSum,
-      surveys: r.surveysSum,
-      balanceScore: 0,
-      isOptimal: false
-    }));
+    const colaStats: TmoRangeStats[] = Object.entries(ranges).map(([start, r]) => {
+      const count = colaData.filter(d => Math.floor(d.TMO_SEC / rangeSize) * rangeSize === Number(start)).length;
+      return {
+        cola,
+        rangeStart: Number(start),
+        rangeEnd: Number(start) + rangeSize,
+        avgNps: r.npsCount > 0 ? r.npsSum / r.npsCount : null,
+        avgTmo: r.tmoSum / count,
+        avgSilence: r.silenceSum / count,
+        metaTmo: r.metaTmo,
+        metaNps: r.metaNps,
+        volume: r.volSum,
+        surveys: r.surveysSum,
+        balanceScore: 0,
+        isOptimal: false
+      };
+    });
 
     // Calculate Balance Score
     // Methodology: (60% NPS normalizado + 40% eficiência de TMO) × peso por volume de pesquisas
@@ -123,11 +138,11 @@ export function generateExecutiveSummary(stats: TmoRangeStats[]): ExecutiveSumma
 
     let recommendation = '';
     if (status === 'DENTRO') {
-      recommendation = `Manter operação na faixa de ${optimal.rangeStart}-${optimal.rangeEnd}s. Foco em estabilidade de NPS.`;
+      recommendation = `Manter operação na faixa de ${formatSeconds(optimal.rangeStart)}-${formatSeconds(optimal.rangeEnd)}. Foco em estabilidade de NPS.`;
     } else if (status === 'PROXIMO') {
       recommendation = `Otimizar processos para reduzir TMO em ${diff.toFixed(1)}% e atingir a meta sem sacrificar NPS.`;
     } else {
-      recommendation = `Revisar gargalos operacionais. A faixa ideal identificada (${optimal.rangeStart}-${optimal.rangeEnd}s) está significativamente acima da meta.`;
+      recommendation = `Revisar gargalos operacionais. A faixa ideal identificada (${formatSeconds(optimal.rangeStart)}-${formatSeconds(optimal.rangeEnd)}) está significativamente acima da meta.`;
     }
 
     return {

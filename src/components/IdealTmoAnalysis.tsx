@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { DashboardData } from '../types';
-import { calculateIdealTmo, generateExecutiveSummary, TmoRangeStats } from '../lib/analysis';
+import { calculateIdealTmo, generateExecutiveSummary, TmoRangeStats, formatSeconds } from '../lib/analysis';
 import { CheckCircle2, AlertCircle, XCircle, TrendingUp, Target, BarChart3 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -66,7 +66,7 @@ export function IdealTmoAnalysis({ data }: IdealTmoAnalysisProps) {
                     <td className="px-6 py-4 text-sm font-bold text-slate-900">{item.cola}</td>
                     <td className="px-6 py-4">
                       <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-xs font-mono font-bold">
-                        {item.optimalRange[0]}-{item.optimalRange[1]}s
+                        {formatSeconds(item.optimalRange[0])}-{formatSeconds(item.optimalRange[1])}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -116,7 +116,9 @@ export function IdealTmoAnalysis({ data }: IdealTmoAnalysisProps) {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr>
-                        <th className="px-3 py-2 text-[9px] font-bold text-slate-400 uppercase">Faixa (s)</th>
+                        <th className="px-3 py-2 text-[9px] font-bold text-slate-400 uppercase">Faixa (HH:MM:SS)</th>
+                        <th className="px-3 py-2 text-[9px] font-bold text-slate-400 uppercase">TMO Médio</th>
+                        <th className="px-3 py-2 text-[9px] font-bold text-slate-400 uppercase">Silêncio Médio</th>
                         <th className="px-3 py-2 text-[9px] font-bold text-slate-400 uppercase">NPS Médio</th>
                         <th className="px-3 py-2 text-[9px] font-bold text-slate-400 uppercase">Vol. Pesquisas</th>
                         <th className="px-3 py-2 text-[9px] font-bold text-slate-400 uppercase">Score Equilíbrio</th>
@@ -126,8 +128,14 @@ export function IdealTmoAnalysis({ data }: IdealTmoAnalysisProps) {
                       {colaStats.map((s, idx) => (
                         <tr key={idx} className={`${s.isOptimal ? 'bg-amber-50/50' : ''} hover:bg-slate-50 transition-colors`}>
                           <td className="px-3 py-2 text-xs font-mono">
-                            {s.rangeStart}-{s.rangeEnd}
+                            {formatSeconds(s.rangeStart)}-{formatSeconds(s.rangeEnd)}
                             {s.isOptimal && <span className="ml-2 text-[8px] bg-amber-200 text-amber-800 px-1 rounded font-bold">ÓTIMO</span>}
+                          </td>
+                          <td className="px-3 py-2 text-xs font-mono">
+                            {formatSeconds(s.avgTmo)}
+                          </td>
+                          <td className="px-3 py-2 text-xs font-mono">
+                            {formatSeconds(s.avgSilence)}
                           </td>
                           <td className="px-3 py-2 text-xs font-mono">
                             {s.avgNps !== null ? `${(s.avgNps * 100).toFixed(1).replace('.', ',')}%` : '—'}

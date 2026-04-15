@@ -34,6 +34,7 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'data' | 'analysis'>('dashboard');
   const [dashboardData, setDashboardData] = useState<DashboardData[]>(MOCK_DATA);
+  const [isUsingMockData, setIsUsingMockData] = useState(true);
   const [periodo, setPeriodo] = useState<'CONSOLIDADO' | 'D-1'>('CONSOLIDADO');
   const [boxPlotMetric, setBoxPlotMetric] = useState<'TMO_SEC' | 'NPS_REP' | 'SILENCE_DURATION_HH'>('TMO_SEC');
   const [filters, setFilters] = useState<FilterState>({
@@ -51,7 +52,12 @@ export default function App() {
   }, [dashboardData, filters, periodo]);
 
   const handleDataLoaded = (newData: DashboardData[]) => {
-    setDashboardData(prev => [...prev, ...newData]);
+    if (isUsingMockData) {
+      setDashboardData(newData);
+      setIsUsingMockData(false);
+    } else {
+      setDashboardData(prev => [...prev, ...newData]);
+    }
   };
 
   const stats = useMemo(() => {
@@ -186,107 +192,149 @@ export default function App() {
 
         {/* Scrollable Area */}
         <div className="flex-1 overflow-y-auto p-8 space-y-8">
-          {activeTab === 'dashboard' && (
-            <>
-              {/* Stats Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <StatCard label="Total Volume" value={stats.totalVol.toLocaleString()} trend="+12.5%" isTech />
-                <StatCard label="Avg TMO" value={`${stats.avgTmo.toFixed(0)}s`} trend="-5.2%" trendNegative isTech />
-                <StatCard label="Avg NPS" value={stats.avgNps.toFixed(1)} trend="+2.1%" isTech />
+          {isUsingMockData && (
+            <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-600">
+                  <BarChart3 size={20} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-amber-900">Visualizando Dados de Exemplo</h4>
+                  <p className="text-xs text-amber-700">Carregue seus próprios arquivos na aba "Data Bases" para substituir estes dados.</p>
+                </div>
               </div>
+              <button 
+                onClick={() => setActiveTab('data')}
+                className="px-4 py-2 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 transition-colors"
+              >
+                Carregar Meus Dados
+              </button>
+            </div>
+          )}
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Charts Area */}
-                <div className="lg:col-span-3 space-y-8">
-                  <div className="grid grid-cols-1 gap-8">
-                    <div className="dashboard-card p-6">
-                      <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                          <BarChart3 size={18} className="text-indigo-600" />
-                          Volume by Range (HC)
-                        </h3>
+          {dashboardData.length === 0 && activeTab !== 'data' ? (
+            <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
+              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center text-slate-400">
+                <TableIcon size={32} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">Nenhum dado carregado</h3>
+                <p className="text-sm text-slate-500 max-w-xs mx-auto">
+                  Vá para a aba "Data Bases" e faça o upload do seu arquivo CSV ou Excel para começar.
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveTab('data')}
+                className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-600/20"
+              >
+                Carregar Dados
+              </button>
+            </div>
+          ) : (
+            <>
+              {activeTab === 'dashboard' && (
+                <div className="space-y-8">
+                  {/* Stats Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <StatCard label="Total Volume" value={stats.totalVol.toLocaleString()} trend="+12.5%" isTech />
+                    <StatCard label="Avg TMO" value={`${stats.avgTmo.toFixed(0)}s`} trend="-5.2%" trendNegative isTech />
+                    <StatCard label="Avg NPS" value={stats.avgNps.toFixed(1)} trend="+2.1%" isTech />
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {/* Charts Area */}
+                    <div className="lg:col-span-3 space-y-8">
+                      <div className="grid grid-cols-1 gap-8">
+                        <div className="dashboard-card p-6">
+                          <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                              <BarChart3 size={18} className="text-indigo-600" />
+                              Volume by Range (HC)
+                            </h3>
+                          </div>
+                          <div className="h-[300px]">
+                            <VolumeHistogram data={filteredData} />
+                          </div>
+                        </div>
                       </div>
-                      <div className="h-[300px]">
-                        <VolumeHistogram data={filteredData} />
+
+                      <div className="dashboard-card p-6">
+                        <div className="flex items-center justify-between mb-6">
+                          <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                            <BarChart3 size={18} className="text-indigo-600" />
+                            Distribution Analysis (Box Plot)
+                          </h3>
+                          <div className="flex gap-2">
+                            {(['TMO_SEC', 'NPS_REP', 'SILENCE_DURATION_HH'] as const).map(m => (
+                              <button
+                                key={m}
+                                onClick={() => setBoxPlotMetric(m)}
+                                className={cn(
+                                  "px-2 py-1 text-[10px] font-bold rounded transition-all uppercase",
+                                  boxPlotMetric === m 
+                                    ? "bg-indigo-600 text-white" 
+                                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                                )}
+                              >
+                                {m.split('_')[0]}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <BoxPlotChart 
+                          data={filteredData} 
+                          metric={boxPlotMetric} 
+                          title={`${boxPlotMetric.split('_')[0]} Dispersion by Queue`} 
+                        />
+                      </div>
+
+                      <div className="dashboard-card">
+                        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                          <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                            <TableIcon size={18} className="text-indigo-600" />
+                            Agent Performance Data
+                          </h3>
+                          <span className="text-xs font-mono text-slate-500">{filteredData.length} records found</span>
+                        </div>
+                        <DataTable data={filteredData} />
                       </div>
                     </div>
                   </div>
+                </div>
+              )}
 
-                  <div className="dashboard-card p-6">
-                    <div className="flex items-center justify-between mb-6">
-                      <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                        <BarChart3 size={18} className="text-indigo-600" />
-                        Distribution Analysis (Box Plot)
-                      </h3>
-                      <div className="flex gap-2">
-                        {(['TMO_SEC', 'NPS_REP', 'SILENCE_DURATION_HH'] as const).map(m => (
-                          <button
-                            key={m}
-                            onClick={() => setBoxPlotMetric(m)}
-                            className={cn(
-                              "px-2 py-1 text-[10px] font-bold rounded transition-all uppercase",
-                              boxPlotMetric === m 
-                                ? "bg-indigo-600 text-white" 
-                                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                            )}
-                          >
-                            {m.split('_')[0]}
-                          </button>
-                        ))}
-                      </div>
+              {activeTab === 'analysis' && (
+                <IdealTmoAnalysis data={filteredData} />
+              )}
+
+              {activeTab === 'data' && (
+                <div className="max-w-4xl mx-auto space-y-8">
+                  <div className="dashboard-card p-8">
+                    <div className="mb-6">
+                      <h2 className="text-xl font-bold text-slate-900">Import Data Bases</h2>
+                      <p className="text-sm text-slate-500 mt-1">
+                        Upload your CSV or Excel files to populate the dashboard. The system will automatically map the columns based on your SQL query structure.
+                      </p>
                     </div>
-                    <BoxPlotChart 
-                      data={filteredData} 
-                      metric={boxPlotMetric} 
-                      title={`${boxPlotMetric.split('_')[0]} Dispersion by Queue`} 
-                    />
+                    <FileUploader onDataLoaded={handleDataLoaded} />
                   </div>
 
                   <div className="dashboard-card">
-                    <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                        <TableIcon size={18} className="text-indigo-600" />
-                        Agent Performance Data
-                      </h3>
-                      <span className="text-xs font-mono text-slate-500">{filteredData.length} records found</span>
+                    <div className="p-6 border-b border-slate-100">
+                      <h3 className="text-sm font-semibold text-slate-900">Currently Loaded Data</h3>
                     </div>
-                    <DataTable data={filteredData} />
+                    <div className="p-0">
+                      <DataTable data={dashboardData.slice(0, 10)} />
+                      {dashboardData.length > 10 && (
+                        <div className="p-4 bg-slate-50 text-center border-t border-slate-100">
+                          <p className="text-xs text-slate-500">Showing first 10 of {dashboardData.length} records</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </>
-          )}
-
-          {activeTab === 'analysis' && (
-            <IdealTmoAnalysis data={filteredData} />
-          )}
-
-          {activeTab === 'data' && (
-            <div className="max-w-4xl mx-auto space-y-8">
-              <div className="dashboard-card p-8">
-                <div className="mb-6">
-                  <h2 className="text-xl font-bold text-slate-900">Import Data Bases</h2>
-                  <p className="text-sm text-slate-500 mt-1">
-                    Upload your CSV or Excel files to populate the dashboard. The system will automatically map the columns based on your SQL query structure.
-                  </p>
-                </div>
-                <FileUploader onDataLoaded={handleDataLoaded} />
-              </div>
-
-              <div className="dashboard-card">
-                <div className="p-6 border-b border-slate-100">
-                  <h3 className="text-sm font-semibold text-slate-900">Currently Loaded Data</h3>
-                </div>
-                <div className="p-0">
-                  <DataTable data={dashboardData.slice(0, 10)} />
-                  {dashboardData.length > 10 && (
-                    <div className="p-4 bg-slate-50 text-center border-t border-slate-100">
-                      <p className="text-xs text-slate-500">Showing first 10 of {dashboardData.length} records</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
           )}
         </div>
       </main>
