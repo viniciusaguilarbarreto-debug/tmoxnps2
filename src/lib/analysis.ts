@@ -4,6 +4,7 @@ export interface TmoRangeStats {
   cola: string;
   rangeStart: number;
   rangeEnd: number;
+  faixaLabel: string;
   avgNps: number | null;
   avgTmo: number;
   avgSilence: number;
@@ -22,6 +23,7 @@ export interface TmoRangeStats {
 export interface ExecutiveSummaryItem {
   cola: string;
   optimalRange: [number, number];
+  faixaLabel: string;
   status: 'DENTRO' | 'PROXIMO' | 'ACIMA';
   npsOptimal: number;
   npsMeta: number;
@@ -29,6 +31,7 @@ export interface ExecutiveSummaryItem {
 }
 
 export function formatSeconds(seconds: number): string {
+  if (seconds === undefined || seconds === null) return '00:00:00';
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
@@ -42,42 +45,36 @@ export function calculateIdealTmo(data: DashboardData[], settings: AnalysisSetti
   colas.forEach(cola => {
     const colaData = data.filter(d => d.COLA === cola);
     
-    // Group by USER_FAIXA_ORDEM (Base summarized at Case ID level or aggregated)
+    // Group by USER_FAIXA_ORDEM
     const ranges: Record<number, { 
       tmoSum: number, 
-      npsSum: number, 
-      npsCount: number, 
+      npsPondSum: number, 
       volSum: number, 
       surveysSum: number,
-      metaTmoSum: number,
-      metaNpsSum: number,
-      silenceSum: number
+      metaTmoFirst: number,
+      metaNpsFirst: number,
+      silenceSum: number,
+      faixaLabel: string
     }> = {};
 
     colaData.forEach(d => {
       const start = d.USER_FAIXA_ORDEM;
       if (!ranges[start]) {
         ranges[start] = { 
-          tmoSum: 0, npsSum: 0, npsCount: 0, volSum: 0, surveysSum: 0, 
-          metaTmoSum: 0, metaNpsSum: 0, silenceSum: 0
+          tmoSum: 0, npsPondSum: 0, volSum: 0, surveysSum: 0, 
+          metaTmoFirst: d.META, metaNpsFirst: d.META_NPS, silenceSum: 0,
+          faixaLabel: d.USER_FAIXA_HISTOGRAMA
         };
       }
       
       ranges[start].tmoSum += d.TMO_SEC;
-      // In Case ID structure, d.VOL should be 1, but we use d.VOL to be safe with pre-aggregated data
-      ranges[start].volSum += (d.VOL || 1); 
-      ranges[start].metaTmoSum += (d.META_TMO * (d.VOL || 1));
-      ranges[start].silenceSum += d.SILENCE_DURATION_HH;
+      ranges[start].volSum += 1; // Each row is 1 case
+      ranges[start].silenceSum += d.SILENCE_DURATION_SEC;
       
-      if (d.QTD_PESQUISAS_NPS > 0) {
-        ranges[start].surveysSum += d.QTD_PESQUISAS_NPS;
-        ranges[start].metaNpsSum += ((d.META_NPS_REP || 0) * d.QTD_PESQUISAS_NPS);
-        if (d.NPS_REP !== null) {
-          // NPS is already -1 to 1 or 0 to 1 usually. We sum weighted by surveys if aggregating.
-          // Since it's case level, surveys usually = 1.
-          ranges[start].npsSum += (d.NPS_REP * d.QTD_PESQUISAS_NPS);
-          ranges[start].npsCount += 1;
-        }
+      // Use only PIVOT columns to aggregate NPS avoiding duplication
+      if (d.QTD_PESQUISAS_PARA_PIVOT > 0) {
+        ranges[start].surveysSum += d.QTD_PESQUISAS_PARA_PIVOT;
+        ranges[start].npsPondSum += d.NPS_PONDERADO_PARA_PIVOT;
       }
     });
 
@@ -90,12 +87,13 @@ export function calculateIdealTmo(data: DashboardData[], settings: AnalysisSetti
       return {
         cola,
         rangeStart: start,
-        rangeEnd: nextStart || start + 300,
-        avgNps: r.surveysSum > 0 ? r.npsSum / r.surveysSum : null,
-        avgTmo: r.volSum > 0 ? r.tmoSum / r.volSum : 0,
-        avgSilence: r.volSum > 0 ? r.silenceSum / r.volSum : 0,
-        metaTmo: r.volSum > 0 ? r.metaTmoSum / r.volSum : 0,
-        metaNps: r.surveysSum > 0 ? r.metaNpsSum / r.surveysSum : 0,
+        rangeEnd: nextStart || (start + 300), 
+        faixaLabel: r.faixaLabel,
+        avgNps: r.surveysSum > 0 ? (r.npsPondSum / r.surveysSum) : null,
+        avgTmo: r.volSum > 0 ? (r.tmoSum / r.volSum) : 0,
+        avgSilence: r.volSum > 0 ? (r.silenceSum / r.volSum) : 0,
+        metaTmo: r.metaTmoFirst,
+        metaNps: r.metaNpsFirst * 100, // Fraction to Percentage
         volume: r.volSum,
         surveys: r.surveysSum,
         balanceScore: 0,
@@ -106,38 +104,52 @@ export function calculateIdealTmo(data: DashboardData[], settings: AnalysisSetti
       };
     });
 
-    // JERUSALÉM 2.0 LOGIC: Normalization and Weighted Scoring
-    // 1. Min/Max for each metric within the COLA
-    const validStats = colaStats.filter(s => s.avgNps !== null);
-    if (validStats.length > 0) {
-      const minNps = Math.min(...validStats.map(s => s.avgNps!));
-      const maxNps = Math.max(...validStats.map(s => s.avgNps!));
+    // JERUSALÉM 2.0 LOGIC: Normalization and Tripartite Weighted Scoring
+    // Filter valid stats for normalization (at least 5 surveys as per Jerusalem rules)
+    const validStats = colaStats.filter(s => s.avgNps !== null && s.surveys >= 5);
+    
+    // If no ranges have 5+ surveys, fall back to any range with NPS
+    const statsForNorm = validStats.length > 0 ? validStats : colaStats.filter(s => s.avgNps !== null);
+
+    if (statsForNorm.length > 0) {
+      const minNps = Math.min(...statsForNorm.map(s => s.avgNps!));
+      const maxNps = Math.max(...statsForNorm.map(s => s.avgNps!));
       const npsRange = maxNps - minNps || 1;
 
-      const minTmo = Math.min(...colaStats.map(s => s.avgTmo));
-      const maxTmo = Math.max(...colaStats.map(s => s.avgTmo));
+      const minTmo = Math.min(...statsForNorm.map(s => s.avgTmo));
+      const maxTmo = Math.max(...statsForNorm.map(s => s.avgTmo));
       const tmoRange = maxTmo - minTmo || 1;
 
-      const minVol = Math.min(...colaStats.map(s => s.volume));
-      const maxVol = Math.max(...colaStats.map(s => s.volume));
+      const minVol = Math.min(...statsForNorm.map(s => s.volume));
+      const maxVol = Math.max(...statsForNorm.map(s => s.volume));
       const volRange = maxVol - minVol || 1;
 
       colaStats.forEach(s => {
         // Normalization (0 to 1)
         s.normNps = s.avgNps !== null ? (s.avgNps - minNps) / npsRange : 0;
-        // TMO Efficiency: Lower TMO is better, so we invert
+        // TMO Efficiency: Lower TMO is better
         s.normTmo = (maxTmo - s.avgTmo) / tmoRange;
         s.normVol = (s.volume - minVol) / volRange;
 
-        // Weighted Score (Balance Score)
+        // Ensure normalized values stay within [0, 1] for items outside the valid set
+        s.normNps = Math.max(0, Math.min(1, s.normNps));
+        s.normTmo = Math.max(0, Math.min(1, s.normTmo));
+        s.normVol = Math.max(0, Math.min(1, s.normVol));
+
+        // Weighted Score (Balance Score) - Default 0.33 each or dynamic
+        const wNps = settings.weightNps;
+        const wTmo = settings.weightTmo;
+        const wVol = settings.weightVol;
+        const totalWeight = wNps + wTmo + wVol || 1;
+
         s.balanceScore = (
-          (s.normNps * settings.weightNps) + 
-          (s.normTmo * settings.weightTmo) + 
-          (s.normVol * settings.weightVol)
+          ((s.normNps * wNps) + 
+          (s.normTmo * wTmo) + 
+          (s.normVol * wVol)) / totalWeight
         ) * 100;
       });
 
-      // Constraint: Ideal NPS must not be lower than the meta (if meta exists)
+      // Constraint: Ideal NPS must not be lower than the meta
       const meetMeta = colaStats.filter(s => s.avgNps !== null && s.avgNps >= (s.metaNps || -1));
       let optimal: TmoRangeStats | undefined;
       
@@ -162,10 +174,6 @@ export function calculateIdealTmo(data: DashboardData[], settings: AnalysisSetti
   return allStats;
 }
 
-function d3Sum(arr: number[]) {
-  return arr.reduce((a, b) => a + b, 0);
-}
-
 export function generateExecutiveSummary(stats: TmoRangeStats[]): ExecutiveSummaryItem[] {
   const colas = Array.from(new Set(stats.map(s => s.cola)));
   
@@ -177,6 +185,7 @@ export function generateExecutiveSummary(stats: TmoRangeStats[]): ExecutiveSumma
       return {
         cola,
         optimalRange: [0, 0],
+        faixaLabel: 'N/A',
         status: 'DENTRO',
         npsOptimal: 0,
         npsMeta: 0,
@@ -192,19 +201,20 @@ export function generateExecutiveSummary(stats: TmoRangeStats[]): ExecutiveSumma
 
     let recommendation = '';
     if (status === 'DENTRO') {
-      recommendation = `Manter operação na faixa de ${formatSeconds(optimal.rangeStart)}-${formatSeconds(optimal.rangeEnd)}. Foco em estabilidade de NPS.`;
+      recommendation = `Manter operação na faixa ${optimal.faixaLabel}. Foco em estabilidade de NPS.`;
     } else if (status === 'PROXIMO') {
       recommendation = `Otimizar processos para reduzir TMO em ${(diff || 0).toFixed(1)}% e atingir a meta sem sacrificar NPS.`;
     } else {
-      recommendation = `Revisar gargalos operacionais. A faixa ideal identificada (${formatSeconds(optimal.rangeStart)}-${formatSeconds(optimal.rangeEnd)}) está significativamente acima da meta.`;
+      recommendation = `Revisar gargalos operacionais na fila ${cola}. A faixa ideal identificada (${optimal.faixaLabel}) está significativamente acima da meta.`;
     }
 
     return {
       cola,
       optimalRange: [optimal.rangeStart, optimal.rangeEnd],
+      faixaLabel: optimal.faixaLabel,
       status,
-      npsOptimal: (optimal.avgNps || 0) * 100,
-      npsMeta: (optimal.metaNps || 0) * 100,
+      npsOptimal: (optimal.avgNps || 0),
+      npsMeta: (optimal.metaNps || 0),
       recommendation
     };
   });

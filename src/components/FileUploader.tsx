@@ -81,22 +81,21 @@ export function FileUploader({ onDataLoaded }: FileUploaderProps) {
 
   const mapToDashboardData = (data: any[]): DashboardData[] => {
     return data.map(item => ({
-      PERIODO: item.PERIODO || 'CONSOLIDADO',
+      CASE_ID: item.CASE_ID ? String(item.CASE_ID) : undefined,
       COLA: String(item.COLA || ''),
-      DATA: item.DATA ? String(item.DATA) : null,
       USER_FAIXA_ORDEM: parseNum(item.USER_FAIXA_ORDEM),
-      USER_LDAP: String(item.USER_LDAP || ''),
-      VOL: parseNum(item.VOL || item.Vol),
-      TMO_HH: String(item.TMO_HH || '00:00:00'),
+      USER_FAIXA_HISTOGRAMA: String(item.USER_FAIXA_HISTOGRAMA || ''),
       TMO_SEC: parseNum(item.TMO_SEC),
-      META_TMO: parseNum(item.META_TMO),
-      IMPACTO_TMO_MEDIA_MES: parseNum(item.IMPACTO_TMO_MEDIA_MES),
-      QTD_PESQUISAS_NPS: parseNum(item.QTD_PESQUISAS_NPS),
-      NPS_REP: item.NPS_REP !== undefined && item.NPS_REP !== null ? parseNum(item.NPS_REP) : null,
-      META_NPS_REP: item.META_NPS_REP !== undefined && item.META_NPS_REP !== null ? parseNum(item.META_NPS_REP) : null,
-      IMPACTO_NPS_META_COLA: parseNum(item.IMPACTO_NPS_META_COLA),
-      SILENCE_DURATION_HH: parseTime(item.SILENCE_DURATION_HH),
-      MEDIA_SILENCIO_CHAT_AGENTE_HH: parseTime(item.MEDIA_SILENCIO_CHAT_AGENTE_HH),
+      META: parseNum(item.META),
+      SILENCE_DURATION_SEC: parseNum(item.SILENCE_DURATION_SEC),
+      QTD_PESQUISAS_PARA_PIVOT: parseNum(item.QTD_PESQUISAS_PARA_PIVOT),
+      NPS_PONDERADO_PARA_PIVOT: parseNum(item.NPS_PONDERADO_PARA_PIVOT),
+      META_NPS: parseNum(item.META_NPS),
+      // Metadata
+      PERIODO: item.PERIODO || 'CONSOLIDADO',
+      DATA: item.DATA ? String(item.DATA) : null,
+      USER_LDAP: String(item.USER_LDAP || ''),
+      ASSIGN_CI_CURRENT_CHANNEL: item.ASSIGN_CI_CURRENT_CHANNEL ? String(item.ASSIGN_CI_CURRENT_CHANNEL) : undefined,
     }));
   };
 

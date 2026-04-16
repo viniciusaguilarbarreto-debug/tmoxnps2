@@ -5,35 +5,35 @@ const generateMockItem = (periodo: 'CONSOLIDADO' | 'D-1', i: number): DashboardD
   const channel = ['CHAT', 'WHATSAPP', 'VOICE'][Math.floor(Math.random() * 3)];
   const tmoSec = Math.floor(Math.random() * 2000);
   const metaTmo = 1700;
-  const caseId = `CS-${Math.floor(Math.random() * 9000000) + 1000000}`;
+  const rangeStart = Math.floor(Math.random() * 10) * 200;
+  const isFirstOfAgent = Math.random() > 0.7; // Only some cases carry NPS to avoid duplication
   
   return {
-    CASE_ID: caseId,
-    PERIODO: periodo,
+    CASE_ID: `CS-${Math.floor(Math.random() * 9000000) + 1000000}`,
     COLA: cola,
-    ASSIGN_CI_CURRENT_CHANNEL: channel,
-    DATA: periodo === 'D-1' ? '09/04/2026' : '15/04/2026',
-    USER_FAIXA_ORDEM: Math.floor(Math.random() * 10) * 200, // Normalized ranges like 0, 200, 400...
-    USER_LDAP: `agent_${Math.floor(Math.random() * 10)}`,
-    VOL: 1, // Case level always starts with 1
+    USER_FAIXA_ORDEM: rangeStart,
+    USER_FAIXA_HISTOGRAMA: `${rangeStart} - ${rangeStart + 200}`,
     TMO_SEC: tmoSec,
-    META_TMO: metaTmo,
-    QTD_PESQUISAS_NPS: Math.random() > 0.8 ? 1 : 0, // Roughly 20% survey rate
-    NPS_REP: Math.random() > 0.8 ? [1, 0, -1][Math.floor(Math.random() * 3)] : null,
-    META_NPS_REP: 0.5,
-    SILENCE_DURATION_HH: Math.random() * 0.1, // Silence in hours
-    MEDIA_SILENCIO_CHAT_AGENTE_HH: Math.random() * 0.05,
+    META: metaTmo,
+    SILENCE_DURATION_SEC: Math.floor(Math.random() * 300),
+    QTD_PESQUISAS_PARA_PIVOT: isFirstOfAgent ? (Math.random() > 0.5 ? 1 : 0) : 0,
+    NPS_PONDERADO_PARA_PIVOT: isFirstOfAgent ? (Math.random() > 0.3 ? (Math.random() > 0.5 ? 100 : -100) : 0) : 0,
+    META_NPS: 0.73,
+    // Common metadata
+    PERIODO: periodo,
+    DATA: periodo === 'D-1' ? '09/04/2026' : '15/04/2026',
+    USER_LDAP: `agent_${Math.floor(Math.random() * 10)}`,
+    ASSIGN_CI_CURRENT_CHANNEL: channel,
   };
 };
 
 export const MOCK_DATA: DashboardData[] = [];
 
-// Generate 500 items for CONSOLIDADO to simulate case-level volume
-for (let i = 0; i < 500; i++) {
+// Generate 1000 items to simulate case-level data
+for (let i = 0; i < 1000; i++) {
   MOCK_DATA.push(generateMockItem('CONSOLIDADO', i));
 }
 
-// Generate 200 items for D-1
-for (let i = 0; i < 200; i++) {
+for (let i = 0; i < 400; i++) {
   MOCK_DATA.push(generateMockItem('D-1', i));
 }

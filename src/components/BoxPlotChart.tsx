@@ -4,7 +4,7 @@ import { DashboardData } from '../types';
 
 interface BoxPlotChartProps {
   data: DashboardData[];
-  metric: 'TMO_SEC' | 'NPS_REP' | 'SILENCE_DURATION_HH';
+  metric: 'TMO_SEC' | 'SILENCE_DURATION_SEC';
   title: string;
 }
 
@@ -113,14 +113,9 @@ export function BoxPlotChart({ data, metric, title }: BoxPlotChartProps) {
     const color = d3.scaleOrdinal(d3.schemeTableau10);
 
     const formatVal = (v: number) => {
+      if (v === undefined || v === null) return '0';
       if (metric === 'TMO_SEC') return `${v.toFixed(0)}s`;
-      if (metric === 'NPS_REP') return `${(v * 100).toFixed(1)}%`;
-      if (metric === 'SILENCE_DURATION_HH') {
-        const h = Math.floor(v / 3600);
-        const m = Math.floor((v % 3600) / 60);
-        const s = Math.floor(v % 60);
-        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-      }
+      if (metric === 'SILENCE_DURATION_SEC') return `${v.toFixed(1)}s`;
       return v.toFixed(2);
     };
 

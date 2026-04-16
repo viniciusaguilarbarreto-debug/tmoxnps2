@@ -22,68 +22,64 @@ interface ChartProps {
 
 export function VolumeHistogram({ data }: ChartProps) {
   const { chartData, r2, pearson } = useMemo(() => {
-    // Group by USER_FAIXA_ORDEM (Base summarized at Case ID level or aggregated)
+    // Group by USER_FAIXA_ORDEM
     const groups: Record<number, { 
       range: number, 
+      label: string,
       agents: Set<string>, 
       totalTmo: number, 
       totalSilence: number,
-      totalNps: number,
-      npsCount: number,
-      volSum: number,
-      surveysSum: number
+      totalNpsWeight: number,
+      surveysSum: number,
+      caseCount: number
     }> = {};
     
-    // For Correlation calculation
-    let n = 0;
-    let sumX = 0; // TMO
-    let sumY = 0; // NPS
-    let sumXY = 0;
-    let sumX2 = 0;
-    let sumY2 = 0;
-
     data.forEach(item => {
       const range = item.USER_FAIXA_ORDEM;
       if (!groups[range]) {
         groups[range] = { 
-          range, agents: new Set(), totalTmo: 0, totalSilence: 0, totalNps: 0, 
-          npsCount: 0, volSum: 0, surveysSum: 0 
+          range, label: item.USER_FAIXA_HISTOGRAMA, agents: new Set(), 
+          totalTmo: 0, totalSilence: 0, totalNpsWeight: 0, surveysSum: 0, caseCount: 0
         };
       }
       groups[range].agents.add(item.USER_LDAP);
       groups[range].totalTmo += item.TMO_SEC;
-      groups[range].totalSilence += item.SILENCE_DURATION_HH;
-      groups[range].volSum += (item.VOL || 1);
+      groups[range].totalSilence += item.SILENCE_DURATION_SEC;
+      groups[range].caseCount += 1;
 
-      if (item.QTD_PESQUISAS_NPS > 0 && item.NPS_REP !== null) {
-        const npsVal = item.NPS_REP * 100;
-        groups[range].totalNps += (npsVal * item.QTD_PESQUISAS_NPS);
-        groups[range].npsCount += 1;
-        groups[range].surveysSum += item.QTD_PESQUISAS_NPS;
-        
-        const x = item.TMO_SEC;
-        const y = npsVal;
-        n++;
-        sumX += x;
-        sumY += y;
-        sumXY += x * y;
-        sumX2 += x * x;
-        sumY2 += y * y;
+      if (item.QTD_PESQUISAS_PARA_PIVOT > 0) {
+        groups[range].totalNpsWeight += item.NPS_PONDERADO_PARA_PIVOT;
+        groups[range].surveysSum += item.QTD_PESQUISAS_PARA_PIVOT;
       }
+    });
+
+    // Correlation calculation (on aggregated range level for simplicity here)
+    const statsForCorr = Object.values(groups).filter(g => g.surveysSum > 0);
+    const n = statsForCorr.length;
+    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
+
+    statsForCorr.forEach(g => {
+      const x = g.totalTmo / g.caseCount;
+      const y = g.totalNpsWeight / g.surveysSum;
+      sumX += x;
+      sumY += y;
+      sumXY += x * y;
+      sumX2 += x * x;
+      sumY2 += y * y;
     });
 
     const numerator = (n * sumXY - sumX * sumY);
     const denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
-    
     const pearsonValue = n > 1 && denominator !== 0 ? numerator / denominator : 0;
     const r2Value = Math.pow(pearsonValue, 2);
 
     const formattedData = Object.values(groups).map(g => ({
       range: g.range,
+      label: g.label,
       agentCount: g.agents.size,
-      avgTmo: g.volSum > 0 ? g.totalTmo / g.volSum : 0,
-      avgSilence: g.volSum > 0 ? (g.totalSilence * 3600) / g.volSum : 0, // Convert HH to seconds for display
-      avgNps: g.surveysSum > 0 ? g.totalNps / g.surveysSum : null
+      avgTmo: g.caseCount > 0 ? g.totalTmo / g.caseCount : 0,
+      avgSilence: g.caseCount > 0 ? g.totalSilence / g.caseCount : 0,
+      avgNps: g.surveysSum > 0 ? g.totalNpsWeight / g.surveysSum : null
     })).sort((a, b) => a.range - b.range);
 
     return { chartData: formattedData, r2: r2Value, pearson: pearsonValue };
@@ -92,10 +88,10 @@ export function VolumeHistogram({ data }: ChartProps) {
   return (
     <div className="w-full h-full flex flex-col">
       <div className="flex justify-end gap-2 mb-2">
-        <span className="text-[10px] font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600" title="Pearson Correlation between TMO and NPS">
+        <span className="text-[10px] font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600">
           Pearson (TMO/NPS): {(pearson * 100).toFixed(2)}%
         </span>
-        <span className="text-[10px] font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600" title="Coefficient of Determination (R²) between TMO and NPS">
+        <span className="text-[10px] font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600">
           R² (TMO/NPS): {(r2 * 100).toFixed(2)}%
         </span>
       </div>
@@ -104,14 +100,10 @@ export function VolumeHistogram({ data }: ChartProps) {
           <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
             <XAxis 
-              dataKey="range" 
+              dataKey="label" 
               axisLine={false} 
               tickLine={false} 
-              tick={{ fontSize: 10, fill: '#64748b' }}
-              tickFormatter={(val) => {
-                // Find next range to show interval or just show starting point
-                return `${val}s+`;
-              }}
+              tick={{ fontSize: 9, fill: '#64748b' }}
             />
             <YAxis 
               yAxisId="left"
@@ -199,13 +191,13 @@ export function SilenceChart({ data }: ChartProps) {
       if (!groups[item.COLA]) {
         groups[item.COLA] = { name: item.COLA, silence: 0, vol: 0 };
       }
-      groups[item.COLA].silence += item.SILENCE_DURATION_HH;
-      groups[item.COLA].vol += (item.VOL || 1);
+      groups[item.COLA].silence += item.SILENCE_DURATION_SEC;
+      groups[item.COLA].vol += 1;
     });
 
     return Object.values(groups).map(g => ({
       name: g.name,
-      avgSilence: g.vol > 0 ? (g.silence * 3600) / g.vol : 0
+      avgSilence: g.vol > 0 ? (g.silence / g.vol) : 0
     })).sort((a, b) => b.avgSilence - a.avgSilence);
   }, [data]);
 

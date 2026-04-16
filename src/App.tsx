@@ -36,7 +36,7 @@ export default function App() {
   const [dashboardData, setDashboardData] = useState<DashboardData[]>(MOCK_DATA);
   const [isUsingMockData, setIsUsingMockData] = useState(true);
   const [periodo, setPeriodo] = useState<'CONSOLIDADO' | 'D-1'>('CONSOLIDADO');
-  const [boxPlotMetric, setBoxPlotMetric] = useState<'TMO_SEC' | 'NPS_REP' | 'SILENCE_DURATION_HH'>('TMO_SEC');
+  const [boxPlotMetric, setBoxPlotMetric] = useState<'TMO_SEC' | 'SILENCE_DURATION_SEC'>('TMO_SEC');
   const [filters, setFilters] = useState<FilterState>({
     cola: [],
     channel: [],
@@ -63,14 +63,14 @@ export default function App() {
   };
 
   const stats = useMemo(() => {
-    const totalVol = filteredData.reduce((acc, curr) => acc + (curr.VOL || 1), 0);
+    const totalVol = filteredData.length;
     const totalTmo = filteredData.reduce((acc, curr) => acc + curr.TMO_SEC, 0);
     const avgTmo = totalVol > 0 ? totalTmo / totalVol : 0;
     
-    const surveyData = filteredData.filter(d => d.QTD_PESQUISAS_NPS > 0 && d.NPS_REP !== null);
-    const totalSurveys = surveyData.reduce((acc, curr) => acc + curr.QTD_PESQUISAS_NPS, 0);
+    const surveyData = filteredData.filter(d => d.QTD_PESQUISAS_PARA_PIVOT > 0);
+    const totalSurveys = surveyData.reduce((acc, curr) => acc + curr.QTD_PESQUISAS_PARA_PIVOT, 0);
     const avgNps = totalSurveys > 0
-      ? (surveyData.reduce((acc, curr) => acc + (curr.NPS_REP! * curr.QTD_PESQUISAS_NPS), 0) / totalSurveys) * 100
+      ? (surveyData.reduce((acc, curr) => acc + curr.NPS_PONDERADO_PARA_PIVOT, 0) / totalSurveys)
       : 0;
     
     return { totalVol, avgTmo, avgNps };
@@ -267,7 +267,7 @@ export default function App() {
                             Distribution Analysis (Box Plot)
                           </h3>
                           <div className="flex gap-2">
-                            {(['TMO_SEC', 'NPS_REP', 'SILENCE_DURATION_HH'] as const).map(m => (
+                            {(['TMO_SEC', 'SILENCE_DURATION_SEC'] as const).map(m => (
                               <button
                                 key={m}
                                 onClick={() => setBoxPlotMetric(m)}
