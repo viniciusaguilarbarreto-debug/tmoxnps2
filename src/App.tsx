@@ -39,6 +39,7 @@ export default function App() {
   const [boxPlotMetric, setBoxPlotMetric] = useState<'TMO_SEC' | 'NPS_REP' | 'SILENCE_DURATION_HH'>('TMO_SEC');
   const [filters, setFilters] = useState<FilterState>({
     cola: [],
+    channel: [],
     ldap: ''
   });
 
@@ -46,8 +47,9 @@ export default function App() {
     return dashboardData.filter(item => {
       const matchPeriodo = item.PERIODO === periodo;
       const matchCola = filters.cola.length === 0 || filters.cola.includes(item.COLA);
+      const matchChannel = filters.channel.length === 0 || (item.ASSIGN_CI_CURRENT_CHANNEL && filters.channel.includes(item.ASSIGN_CI_CURRENT_CHANNEL));
       const matchLdap = filters.ldap === '' || item.USER_LDAP.toLowerCase().includes(filters.ldap.toLowerCase());
-      return matchPeriodo && matchCola && matchLdap;
+      return matchPeriodo && matchCola && matchChannel && matchLdap;
     });
   }, [dashboardData, filters, periodo]);
 
@@ -61,14 +63,14 @@ export default function App() {
   };
 
   const stats = useMemo(() => {
-    const totalVol = filteredData.reduce((acc, curr) => acc + curr.VOL, 0);
-    const avgTmo = filteredData.length > 0 
-      ? filteredData.reduce((acc, curr) => acc + curr.TMO_SEC, 0) / filteredData.length 
-      : 0;
+    const totalVol = filteredData.reduce((acc, curr) => acc + (curr.VOL || 1), 0);
+    const totalTmo = filteredData.reduce((acc, curr) => acc + curr.TMO_SEC, 0);
+    const avgTmo = totalVol > 0 ? totalTmo / totalVol : 0;
     
-    const npsData = filteredData.filter(d => d.NPS_REP !== null);
-    const avgNps = npsData.length > 0
-      ? (npsData.reduce((acc, curr) => acc + (curr.NPS_REP || 0), 0) / npsData.length) * 100
+    const surveyData = filteredData.filter(d => d.QTD_PESQUISAS_NPS > 0 && d.NPS_REP !== null);
+    const totalSurveys = surveyData.reduce((acc, curr) => acc + curr.QTD_PESQUISAS_NPS, 0);
+    const avgNps = totalSurveys > 0
+      ? (surveyData.reduce((acc, curr) => acc + (curr.NPS_REP! * curr.QTD_PESQUISAS_NPS), 0) / totalSurveys) * 100
       : 0;
     
     return { totalVol, avgTmo, avgNps };
@@ -236,9 +238,9 @@ export default function App() {
                 <div className="space-y-8">
                   {/* Stats Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <StatCard label="Total Volume" value={stats.totalVol.toLocaleString()} trend="+12.5%" isTech />
-                    <StatCard label="Avg TMO" value={`${stats.avgTmo.toFixed(0)}s`} trend="-5.2%" trendNegative isTech />
-                    <StatCard label="Avg NPS" value={stats.avgNps.toFixed(1)} trend="+2.1%" isTech />
+                    <StatCard label="Total Volume" value={(stats.totalVol || 0).toLocaleString()} trend="+12.5%" isTech />
+                    <StatCard label="Avg TMO" value={`${(stats.avgTmo || 0).toFixed(0)}s`} trend="-5.2%" trendNegative isTech />
+                    <StatCard label="Avg NPS" value={(stats.avgNps || 0).toFixed(1)} trend="+2.1%" isTech />
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

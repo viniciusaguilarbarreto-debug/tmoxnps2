@@ -62,6 +62,7 @@ export function DataTable({ data }: DataTableProps) {
           <tr className="bg-slate-50">
             <HeaderCell label="Agent" columnKey="USER_LDAP" onSort={requestSort} icon={<SortIcon columnKey="USER_LDAP" />} />
             <HeaderCell label="Queue" columnKey="COLA" onSort={requestSort} icon={<SortIcon columnKey="COLA" />} />
+            <HeaderCell label="Channel" columnKey="ASSIGN_CI_CURRENT_CHANNEL" onSort={requestSort} icon={<SortIcon columnKey="ASSIGN_CI_CURRENT_CHANNEL" />} />
             <HeaderCell label="Volume" columnKey="VOL" onSort={requestSort} icon={<SortIcon columnKey="VOL" />} />
             <HeaderCell label="TMO" columnKey="TMO_SEC" onSort={requestSort} icon={<SortIcon columnKey="TMO_SEC" />} />
             <HeaderCell label="NPS" columnKey="NPS_REP" onSort={requestSort} icon={<SortIcon columnKey="NPS_REP" />} />
@@ -80,6 +81,11 @@ export function DataTable({ data }: DataTableProps) {
                   {item.COLA}
                 </span>
               </td>
+              <td className="data-grid-cell">
+                <span className="text-[10px] font-medium text-slate-500 uppercase">
+                  {item.ASSIGN_CI_CURRENT_CHANNEL || '—'}
+                </span>
+              </td>
               <td className="data-grid-cell font-mono text-xs">{item.VOL}</td>
               <td className="data-grid-cell font-mono text-xs">{formatDuration(item.TMO_SEC)}</td>
               <td className="data-grid-cell">
@@ -95,8 +101,8 @@ export function DataTable({ data }: DataTableProps) {
               <td className="data-grid-cell font-mono text-xs">{formatDuration(item.MEDIA_SILENCIO_CHAT_AGENTE_HH)}</td>
               <td className="data-grid-cell font-mono text-xs">{item.QTD_PESQUISAS_NPS}</td>
               <td className="data-grid-cell">
-                <span className={`font-mono text-xs ${item.IMPACTO_TMO_MEDIA_MES >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {item.IMPACTO_TMO_MEDIA_MES >= 0 ? '+' : ''}{item.IMPACTO_TMO_MEDIA_MES.toFixed(2)}
+                <span className={`font-mono text-xs ${(item.IMPACTO_TMO_MEDIA_MES ?? 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {(item.IMPACTO_TMO_MEDIA_MES ?? 0) >= 0 ? '+' : ''}{(item.IMPACTO_TMO_MEDIA_MES ?? 0).toFixed(2)}
                 </span>
               </td>
             </tr>

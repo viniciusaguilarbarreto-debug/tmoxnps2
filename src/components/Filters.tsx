@@ -107,6 +107,7 @@ function CollapsibleFilter({
 
 export function Filters({ filters, setFilters, data }: FiltersProps) {
   const colas = Array.from(new Set(data.map(d => d.COLA))).sort();
+  const channels = Array.from(new Set(data.map(d => d.ASSIGN_CI_CURRENT_CHANNEL).filter(Boolean) as string[])).sort();
 
   const toggleCola = (cola: string) => {
     setFilters(prev => ({
@@ -124,11 +125,27 @@ export function Filters({ filters, setFilters, data }: FiltersProps) {
     }));
   };
 
-  const clearFilters = () => {
-    setFilters({ cola: [], ldap: '' });
+  const toggleChannel = (channel: string) => {
+    setFilters(prev => ({
+      ...prev,
+      channel: prev.channel.includes(channel) 
+        ? prev.channel.filter(c => c !== channel) 
+        : [...prev.channel, channel]
+    }));
   };
 
-  const hasFilters = filters.cola.length > 0 || filters.ldap !== '';
+  const selectOnlyChannel = (channel: string) => {
+    setFilters(prev => ({
+      ...prev,
+      channel: [channel]
+    }));
+  };
+
+  const clearFilters = () => {
+    setFilters({ cola: [], channel: [], ldap: '' });
+  };
+
+  const hasFilters = filters.cola.length > 0 || filters.channel.length > 0 || filters.ldap !== '';
 
   return (
     <div className="space-y-6">
@@ -169,6 +186,14 @@ export function Filters({ filters, setFilters, data }: FiltersProps) {
           selected={filters.cola} 
           onToggle={toggleCola}
           onSelectOnly={selectOnlyCola}
+        />
+
+        <CollapsibleFilter 
+          label="Channels" 
+          options={channels} 
+          selected={filters.channel} 
+          onToggle={toggleChannel}
+          onSelectOnly={selectOnlyChannel}
         />
       </div>
     </div>

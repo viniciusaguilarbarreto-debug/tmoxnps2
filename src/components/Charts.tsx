@@ -22,7 +22,7 @@ interface ChartProps {
 
 export function VolumeHistogram({ data }: ChartProps) {
   const { chartData, r2, pearson } = useMemo(() => {
-    // Group by USER_FAIXA_ORDEM (ranges)
+    // Group by USER_FAIXA_ORDEM (Base summarized at Case ID level or aggregated)
     const groups: Record<number, { 
       range: number, 
       agents: Set<string>, 
@@ -30,7 +30,8 @@ export function VolumeHistogram({ data }: ChartProps) {
       totalSilence: number,
       totalNps: number,
       npsCount: number,
-      count: number 
+      volSum: number,
+      surveysSum: number
     }> = {};
     
     // For Correlation calculation
@@ -42,20 +43,23 @@ export function VolumeHistogram({ data }: ChartProps) {
     let sumY2 = 0;
 
     data.forEach(item => {
-      const range = Math.floor(item.USER_FAIXA_ORDEM / 200) * 200;
+      const range = item.USER_FAIXA_ORDEM;
       if (!groups[range]) {
-        groups[range] = { range, agents: new Set(), totalTmo: 0, totalSilence: 0, totalNps: 0, npsCount: 0, count: 0 };
+        groups[range] = { 
+          range, agents: new Set(), totalTmo: 0, totalSilence: 0, totalNps: 0, 
+          npsCount: 0, volSum: 0, surveysSum: 0 
+        };
       }
       groups[range].agents.add(item.USER_LDAP);
       groups[range].totalTmo += item.TMO_SEC;
-      groups[range].totalSilence += item.MEDIA_SILENCIO_CHAT_AGENTE_HH;
-      groups[range].count += 1;
+      groups[range].totalSilence += item.SILENCE_DURATION_HH;
+      groups[range].volSum += (item.VOL || 1);
 
-      if (item.NPS_REP !== null) {
-        // Convert -1..1 to -100..100 for consistent display
+      if (item.QTD_PESQUISAS_NPS > 0 && item.NPS_REP !== null) {
         const npsVal = item.NPS_REP * 100;
-        groups[range].totalNps += npsVal;
+        groups[range].totalNps += (npsVal * item.QTD_PESQUISAS_NPS);
         groups[range].npsCount += 1;
+        groups[range].surveysSum += item.QTD_PESQUISAS_NPS;
         
         const x = item.TMO_SEC;
         const y = npsVal;
@@ -77,9 +81,9 @@ export function VolumeHistogram({ data }: ChartProps) {
     const formattedData = Object.values(groups).map(g => ({
       range: g.range,
       agentCount: g.agents.size,
-      avgTmo: g.totalTmo / g.count,
-      avgSilence: g.totalSilence / g.count,
-      avgNps: g.npsCount > 0 ? g.totalNps / g.npsCount : null
+      avgTmo: g.volSum > 0 ? g.totalTmo / g.volSum : 0,
+      avgSilence: g.volSum > 0 ? (g.totalSilence * 3600) / g.volSum : 0, // Convert HH to seconds for display
+      avgNps: g.surveysSum > 0 ? g.totalNps / g.surveysSum : null
     })).sort((a, b) => a.range - b.range);
 
     return { chartData: formattedData, r2: r2Value, pearson: pearsonValue };
@@ -104,7 +108,10 @@ export function VolumeHistogram({ data }: ChartProps) {
               axisLine={false} 
               tickLine={false} 
               tick={{ fontSize: 10, fill: '#64748b' }}
-              tickFormatter={(val) => `${val}-${val + 199}`}
+              tickFormatter={(val) => {
+                // Find next range to show interval or just show starting point
+                return `${val}s+`;
+              }}
             />
             <YAxis 
               yAxisId="left"
@@ -128,11 +135,12 @@ export function VolumeHistogram({ data }: ChartProps) {
                 fontSize: '12px',
                 boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
               }}
-              formatter={(value: number, name: string) => {
-                if (name.includes('NPS')) return [`${value.toFixed(1).replace('.', ',')}%`, name];
-                if (name.includes('Silence')) return [`${value.toFixed(1).replace('.', ',')}s`, name];
-                if (name.includes('Count')) return [value.toFixed(0), name];
-                return [value.toFixed(2), name];
+              formatter={(value: any, name: string) => {
+                const safeValue = value ?? 0;
+                if (name.includes('NPS')) return [`${safeValue.toFixed(1).replace('.', ',')}%`, name];
+                if (name.includes('Silence')) return [`${safeValue.toFixed(1).replace('.', ',')}s`, name];
+                if (name.includes('Count')) return [safeValue.toFixed(0), name];
+                return [safeValue.toFixed(2), name];
               }}
             />
             <Legend 
@@ -185,19 +193,19 @@ export function VolumeHistogram({ data }: ChartProps) {
 export function SilenceChart({ data }: ChartProps) {
   const chartData = useMemo(() => {
     // Average silence by Queue (COLA)
-    const groups: Record<string, { name: string, silence: number, count: number }> = {};
+    const groups: Record<string, { name: string, silence: number, vol: number }> = {};
     
     data.forEach(item => {
       if (!groups[item.COLA]) {
-        groups[item.COLA] = { name: item.COLA, silence: 0, count: 0 };
+        groups[item.COLA] = { name: item.COLA, silence: 0, vol: 0 };
       }
-      groups[item.COLA].silence += item.MEDIA_SILENCIO_CHAT_AGENTE_HH;
-      groups[item.COLA].count += 1;
+      groups[item.COLA].silence += item.SILENCE_DURATION_HH;
+      groups[item.COLA].vol += (item.VOL || 1);
     });
 
     return Object.values(groups).map(g => ({
       name: g.name,
-      avgSilence: g.silence / g.count
+      avgSilence: g.vol > 0 ? (g.silence * 3600) / g.vol : 0
     })).sort((a, b) => b.avgSilence - a.avgSilence);
   }, [data]);
 
@@ -222,7 +230,7 @@ export function SilenceChart({ data }: ChartProps) {
             borderRadius: '8px',
             fontSize: '12px'
           }}
-          formatter={(val: number) => [`${val.toFixed(2)}s`, 'Avg Silence']}
+          formatter={(val: any) => [`${(val ?? 0).toFixed(2)}s`, 'Avg Silence']}
         />
         <Bar dataKey="avgSilence" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={20} />
       </BarChart>

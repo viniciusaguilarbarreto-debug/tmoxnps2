@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { DashboardData } from '../types';
+import { DashboardData, AnalysisSettings } from '../types';
 import { calculateIdealTmo, generateExecutiveSummary, TmoRangeStats, formatSeconds } from '../lib/analysis';
-import { CheckCircle2, AlertCircle, XCircle, TrendingUp, Target, BarChart3 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { CheckCircle2, AlertCircle, XCircle, TrendingUp, Target, BarChart3, Settings2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface IdealTmoAnalysisProps {
   data: DashboardData[];
@@ -10,8 +10,14 @@ interface IdealTmoAnalysisProps {
 
 export function IdealTmoAnalysis({ data }: IdealTmoAnalysisProps) {
   const [selectedCola, setSelectedCola] = useState<string | 'ALL'>('ALL');
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings] = useState<AnalysisSettings>({
+    weightNps: 0.3,
+    weightTmo: 0.3,
+    weightVol: 0.3
+  });
   
-  const stats = useMemo(() => calculateIdealTmo(data), [data]);
+  const stats = useMemo(() => calculateIdealTmo(data, settings), [data, settings]);
   const summary = useMemo(() => generateExecutiveSummary(stats), [stats]);
 
   const filteredSummary = selectedCola === 'ALL' 
@@ -20,26 +26,109 @@ export function IdealTmoAnalysis({ data }: IdealTmoAnalysisProps) {
 
   const colas = Array.from(new Set(summary.map(s => s.cola))).sort();
 
+  const handleWeightChange = (key: keyof AnalysisSettings, value: number) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
   return (
     <div className="space-y-8">
       {/* Header & Filter */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <div>
           <h2 className="text-xl font-bold text-slate-900">Estudo de TMO Ideal</h2>
-          <p className="text-sm text-slate-500">Análise de equilíbrio entre NPS e eficiência operacional por COLA</p>
+          <p className="text-sm text-slate-500">Análise de equilíbrio entre NPS, TMO e Volume (Jerusalém 2.0)</p>
         </div>
-        <div className="flex items-center gap-3">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Filtrar COLA:</label>
-          <select 
-            value={selectedCola}
-            onChange={(e) => setSelectedCola(e.target.value)}
-            className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 bg-slate-50"
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all border ${
+              showSettings 
+                ? 'bg-indigo-600 border-indigo-600 text-white' 
+                : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-200'
+            }`}
           >
-            <option value="ALL">Todas as COLAs</option>
-            {colas.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
+            <Settings2 size={16} />
+            Pesos do Score
+          </button>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">COLA:</label>
+            <select 
+              value={selectedCola}
+              onChange={(e) => setSelectedCola(e.target.value)}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 bg-slate-50"
+            >
+              <option value="ALL">Todas as COLAs</option>
+              {colas.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
         </div>
       </div>
+
+      {/* Dynamic Weight Settings Panel */}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-slate-900 text-white p-6 rounded-xl border border-slate-800 shadow-xl space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold uppercase tracking-widest text-indigo-400">Configuração de Pesos Dinâmicos</h3>
+                <span className="text-[10px] text-slate-500 italic">Total: {((settings?.weightNps ?? 0) + (settings?.weightTmo ?? 0) + (settings?.weightVol ?? 0)).toFixed(2)}</span>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {/* NPS Weight */}
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-slate-300">Peso NPS</label>
+                    <span className="text-xs font-mono text-indigo-400">{(settings?.weightNps ?? 0).toFixed(2)}</span>
+                  </div>
+                  <input 
+                    type="range" min="0" max="1" step="0.05" 
+                    value={settings?.weightNps ?? 0} 
+                    onChange={(e) => handleWeightChange('weightNps', parseFloat(e.target.value))}
+                    className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                  />
+                  <p className="text-[10px] text-slate-500">Influência da satisfação do cliente no score final.</p>
+                </div>
+
+                {/* TMO Weight */}
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-slate-300">Peso TMO</label>
+                    <span className="text-xs font-mono text-indigo-400">{(settings?.weightTmo ?? 0).toFixed(2)}</span>
+                  </div>
+                  <input 
+                    type="range" min="0" max="1" step="0.05" 
+                    value={settings?.weightTmo ?? 0} 
+                    onChange={(e) => handleWeightChange('weightTmo', parseFloat(e.target.value))}
+                    className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                  />
+                  <p className="text-[10px] text-slate-500">Influência da velocidade de atendimento (Eficiência).</p>
+                </div>
+
+                {/* Vol Weight */}
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-slate-300">Peso Volume</label>
+                    <span className="text-xs font-mono text-indigo-400">{(settings?.weightVol ?? 0).toFixed(2)}</span>
+                  </div>
+                  <input 
+                    type="range" min="0" max="1" step="0.05" 
+                    value={settings?.weightVol ?? 0} 
+                    onChange={(e) => handleWeightChange('weightVol', parseFloat(e.target.value))}
+                    className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                  />
+                  <p className="text-[10px] text-slate-500">Influência da carga de trabalho/amostragem.</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Executive Summary */}
       <div className="grid grid-cols-1 gap-6">
@@ -83,10 +172,10 @@ export function IdealTmoAnalysis({ data }: IdealTmoAnalysisProps) {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm font-mono font-bold text-slate-700">
-                      {item.npsOptimal.toFixed(1).replace('.', ',')}%
+                      {(item.npsOptimal ?? 0).toFixed(1).replace('.', ',')}%
                     </td>
                     <td className="px-6 py-4 text-sm font-mono text-slate-500">
-                      {item.npsMeta.toFixed(1).replace('.', ',')}%
+                      {(item.npsMeta ?? 0).toFixed(1).replace('.', ',')}%
                     </td>
                     <td className="px-6 py-4 text-xs text-slate-600 italic max-w-xs">
                       {item.recommendation}
@@ -118,6 +207,7 @@ export function IdealTmoAnalysis({ data }: IdealTmoAnalysisProps) {
                       <tr>
                         <th className="px-3 py-2 text-[9px] font-bold text-slate-400 uppercase">Faixa (HH:MM:SS)</th>
                         <th className="px-3 py-2 text-[9px] font-bold text-slate-400 uppercase">TMO Médio</th>
+                        <th className="px-3 py-2 text-[9px] font-bold text-slate-400 uppercase">Vol</th>
                         <th className="px-3 py-2 text-[9px] font-bold text-slate-400 uppercase">Silêncio Médio</th>
                         <th className="px-3 py-2 text-[9px] font-bold text-slate-400 uppercase">NPS Médio</th>
                         <th className="px-3 py-2 text-[9px] font-bold text-slate-400 uppercase">Vol. Pesquisas</th>
@@ -133,6 +223,9 @@ export function IdealTmoAnalysis({ data }: IdealTmoAnalysisProps) {
                           </td>
                           <td className="px-3 py-2 text-xs font-mono">
                             {formatSeconds(s.avgTmo)}
+                          </td>
+                          <td className="px-3 py-2 text-xs font-mono">
+                            {s.volume.toLocaleString()}
                           </td>
                           <td className="px-3 py-2 text-xs font-mono">
                             {formatSeconds(s.avgSilence)}
@@ -183,13 +276,13 @@ export function IdealTmoAnalysis({ data }: IdealTmoAnalysisProps) {
                     <div className="flex justify-between items-center text-[10px]">
                       <span className="text-slate-500">TMO Ótimo / Meta:</span>
                       <span className={`font-bold ${tmoRatio <= 1 ? 'text-emerald-600' : tmoRatio <= 1.1 ? 'text-amber-600' : 'text-rose-600'}`}>
-                        {tmoRatio.toFixed(2)}x
+                        {(tmoRatio ?? 0).toFixed(2)}x
                       </span>
                     </div>
                     <div className="flex justify-between items-center text-[10px]">
                       <span className="text-slate-500">NPS Ótimo / Meta:</span>
                       <span className={`font-bold ${npsRatio >= 1 ? 'text-emerald-600' : npsRatio >= 0.8 ? 'text-amber-600' : 'text-rose-600'}`}>
-                        {npsRatio.toFixed(2)}x
+                        {(npsRatio ?? 0).toFixed(2)}x
                       </span>
                     </div>
                   </div>
