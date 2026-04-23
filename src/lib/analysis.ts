@@ -27,6 +27,8 @@ export interface ExecutiveSummaryItem {
   status: 'DENTRO' | 'PROXIMO' | 'ACIMA';
   npsOptimal: number;
   npsMeta: number;
+  avgTmoOptimal: number;
+  metaTmo: number;
   recommendation: string;
 }
 
@@ -149,23 +151,14 @@ export function calculateIdealTmo(data: DashboardData[], settings: AnalysisSetti
         ) * 100;
       });
 
-      // Constraint: Ideal NPS must not be lower than the meta
-      const meetMeta = colaStats.filter(s => s.avgNps !== null && s.avgNps >= (s.metaNps || -1));
-      let optimal: TmoRangeStats | undefined;
+      // Jerusalem 2.0: The Ideal range is the one with the highest Balance Score.
+      // We only consider ranges that have at least one NPS survey to ensure we have a tripartite balance.
+      const candidates = colaStats.filter(s => s.avgNps !== null);
       
-      if (meetMeta.length > 0) {
-        optimal = meetMeta.reduce((prev, curr) => (prev.balanceScore > curr.balanceScore ? prev : curr));
-      } else {
-        // Fallback: Pick highest NPS range if none meet the meta
-        const withNps = colaStats.filter(s => s.avgNps !== null);
-        if (withNps.length > 0) {
-          optimal = withNps.reduce((prev, curr) => (prev.avgNps! > curr.avgNps! ? prev : curr));
-        } else {
-          optimal = colaStats[0];
-        }
+      if (candidates.length > 0) {
+        const optimal = candidates.reduce((prev, curr) => (prev.balanceScore > curr.balanceScore ? prev : curr));
+        optimal.isOptimal = true;
       }
-
-      if (optimal) optimal.isOptimal = true;
     }
 
     allStats.push(...colaStats);
@@ -189,6 +182,8 @@ export function generateExecutiveSummary(stats: TmoRangeStats[]): ExecutiveSumma
         status: 'DENTRO',
         npsOptimal: 0,
         npsMeta: 0,
+        avgTmoOptimal: 0,
+        metaTmo: 0,
         recommendation: 'Sem dados suficientes para análise.'
       };
     }
@@ -215,6 +210,8 @@ export function generateExecutiveSummary(stats: TmoRangeStats[]): ExecutiveSumma
       status,
       npsOptimal: (optimal.avgNps || 0),
       npsMeta: (optimal.metaNps || 0),
+      avgTmoOptimal: optimal.avgTmo,
+      metaTmo: optimal.metaTmo || 0,
       recommendation
     };
   });

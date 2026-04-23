@@ -15,8 +15,7 @@ import {
   Target
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from './lib/utils';
 import { MOCK_DATA } from './mockData';
 import { DashboardData, FilterState } from './types';
 import { VolumeHistogram, SilenceChart } from './components/Charts';
@@ -25,10 +24,6 @@ import { Filters } from './components/Filters';
 import { FileUploader } from './components/FileUploader';
 import { BoxPlotChart } from './components/BoxPlotChart';
 import { IdealTmoAnalysis } from './components/IdealTmoAnalysis';
-
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
 
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);

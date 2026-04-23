@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guia de Projeto: Jerusalém 2.0 - Dashboard de TMO Ideal</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --secondary: #64748b;
+            --bg: #f8fafc;
+            --text: #1e293b;
+            --code-bg: #1e1e1e;
+        }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: var(--bg);
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        header {
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 20px;
+            margin-bottom: 40px;
+        }
+        h1 { color: var(--primary); margin: 0; font-size: 2.5rem; }
+        h2 { color: var(--primary); margin-top: 40px; border-left: 4px solid var(--primary); padding-left: 15px; }
+        h3 { color: #334155; margin-top: 25px; }
+        code {
+            background-color: #e2e8f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9em;
+        }
+        pre {
+            background-color: var(--code-bg);
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.85em;
+        }
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            margin-bottom: 20px;
+        }
+        ul { padding-left: 20px; }
+        li { margin-bottom: 8px; }
+        .tag {
+            display: inline-block;
+            background: #e0e7ff;
+            color: #4338ca;
+            padding: 4px 10px;
+            border-radius: 99px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-right: 5px;
+        }
+        .important {
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            padding: 15px;
+            border-radius: 8px;
+            color: #9a3412;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Guia Jerusalém 2.0</h1>
+        <p>Documentação técnica para continuidade de desenvolvimento via Claude/AI.</p>
+    </header>
+
+    <div class="card">
+        <h2>1. Visão Geral</h2>
+        <p>Este projeto é um Dashboard de Performance Operacional focado na busca do <strong>Equilíbrio Ideal</strong> entre Tempo Médio de Atendimento (TMO) e Qualidade (NPS). O conceito central é identificar a faixa de tempo onde a operação é mais eficiente sem prejudicar a satisfação do cliente.</p>
+    </div>
+
+    <h2>2. Estrutura de Dados</h2>
+    <div class="card">
+        <h3>Granularidade: Caso Individual (Case ID)</h3>
+        <p>Diferente de versões anteriores, a base processada é analítica (linha por atendimento). Toda agregação por faixas de TMO é feita dinamicamente no frontend.</p>
+        <pre>
+interface DashboardData {
+  CASE_ID?: string;
+  COLA: string;
+  USER_FAIXA_ORDEM: number;           // Ordem numérica da faixa
+  USER_FAIXA_HISTOGRAMA: string;      // Label da faixa (ex: "1800 - 1900")
+  TMO_SEC: number;                    // Duração do atendimento
+  SILENCE_DURATION_SEC: number;       // Silêncio total
+  QTD_PESQUISAS_PARA_PIVOT: number;   // 1 ou 0 (Evita inflação de NPS)
+  NPS_PONDERADO_PARA_PIVOT: number;   // Score real (Promotores - Detratores)
+  META: number;                       // Meta de TMO da fila
+  META_NPS: number;                   // Meta de NPS da fila
+  PERIODO: string;                    // "CONSOLIDADO" ou "D-1"
+  USER_LDAP: string;
+  ASSIGN_CI_CURRENT_CHANNEL?: string; // Canal (Chat, Voz, etc)
+}</pre>
+    </div>
+
+    <h2>3. Lógica de Negócio: Score de Equilíbrio</h2>
+    <div class="card">
+        <p>O <strong>Score de Equilíbrio</strong> é a métrica mestra calculada em <code>src/lib/analysis.ts</code>. Ele utiliza uma ponderação tripartite (0.33 cada):</p>
+        <ul>
+            <li><strong>TMO Invertido:</strong> Normaliza o TMO para que valores menores tenham score maior (Eficiência).</li>
+            <li><strong>NPS Normalizado:</strong> Normaliza o NPS médio da faixa (Qualidade).</li>
+            <li><strong>Volume Normalizado:</strong> Faixas com maior representatividade estatística ganham peso (Confiança).</li>
+        </ul>
+        <div class="important">
+            <strong>Nota Crítica:</strong> Somente faixas com pelo menos uma pesquisa de NPS (<code>surveys > 0</code>) são candidatas ao TMO Ideal.
+        </div>
+    </div>
+
+    <h2>4. Tecnologias Utilizadas</h2>
+    <div class="card">
+        <span class="tag">React 18</span>
+        <span class="tag">TypeScript</span>
+        <span class="tag">Vite</span>
+        <span class="tag">Tailwind CSS</span>
+        <span class="tag">Framer Motion</span>
+        <span class="tag">Recharts</span>
+        <span class="tag">D3.js</span>
+        <span class="tag">Lucide React</span>
+        <span class="tag">XLSX / PapaParse</span>
+    </div>
+
+    <h2>5. Componentes Principais</h2>
+    <div class="card">
+        <ul>
+            <li><code>IdealTmoAnalysis.tsx</code>: Componente principal que gera o resumo executivo, tabelas de faixas e a matriz de quadrantes.</li>
+            <li><code>src/lib/analysis.ts</code>: Contém as funções puras de cálculo (<code>calculateIdealTmo</code>, <code>generateExecutiveSummary</code>).</li>
+            <li><code>Charts.tsx</code>: Histogramas de volume e gráficos de silêncio agregados.</li>
+            <li><code>BoxPlotChart.tsx</code>: Visualização de dispersão para KPIs de tempo.</li>
+            <li><code>FileUploader.tsx</code>: Mapeamento de arquivos Excel/CSV para a interface <code>DashboardData</code>.</li>
+        </ul>
+    </div>
+
+    <h2>6. Próximos Passos Sugeridos</h2>
+    <div class="card">
+        <ul>
+            <li><strong>Persistência:</strong> Implementar cache local ou integração com backend para não perder dados ao atualizar a página.</li>
+            <li><strong>Simulação de Pesos:</strong> Permitir que o usuário altere os pesos (0.33/0.33/0.33) dinamicamente na UI para ver o impacto no TMO Ideal.</li>
+            <li><strong>Exportação:</strong> Gerar relatórios em PDF do resumo executivo.</li>
+        </ul>
+    </div>
+
+    <footer style="margin-top: 60px; font-size: 0.8em; color: var(--secondary); text-align: center;">
+        Gerado automaticamente para orientação de assistência IA. <br>
+        Data de Referência: Abril 2026.
+    </footer>
+</body>
+</html>

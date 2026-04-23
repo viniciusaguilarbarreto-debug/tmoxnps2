@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { DashboardData, AnalysisSettings } from '../types';
 import { calculateIdealTmo, generateExecutiveSummary, TmoRangeStats, formatSeconds } from '../lib/analysis';
+import { cn } from '../lib/utils';
 import { CheckCircle2, AlertCircle, XCircle, TrendingUp, Target, BarChart3, Settings2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -216,10 +217,24 @@ export function IdealTmoAnalysis({ data }: IdealTmoAnalysisProps) {
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {colaStats.map((s, idx) => (
-                        <tr key={idx} className={`${s.isOptimal ? 'bg-amber-50/50' : ''} hover:bg-slate-50 transition-colors`}>
+                        <tr 
+                          key={idx} 
+                          className={cn(
+                            "group transition-all border-l-4",
+                            s.isOptimal 
+                              ? "bg-indigo-50/50 border-indigo-500 font-bold" 
+                              : "hover:bg-slate-50 border-transparent"
+                          )}
+                        >
                           <td className="px-3 py-2 text-xs font-mono">
-                            {s.faixaLabel}
-                            {s.isOptimal && <span className="ml-2 text-[8px] bg-amber-200 text-amber-800 px-1 rounded font-bold">ÓTIMO</span>}
+                            <div className="flex items-center gap-2">
+                              {s.faixaLabel}
+                              {s.isOptimal && (
+                                <span className="text-[8px] bg-indigo-600 text-white px-1.5 py-0.5 rounded font-black tracking-tighter uppercase">
+                                  Ideal
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-3 py-2 text-xs font-mono">
                             {formatSeconds(s.avgTmo)}
@@ -236,14 +251,22 @@ export function IdealTmoAnalysis({ data }: IdealTmoAnalysisProps) {
                           <td className="px-3 py-2 text-xs font-mono">{s.surveys}</td>
                           <td className="px-3 py-2">
                             <div className="flex items-center gap-2">
-                              <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner">
                                 <motion.div 
                                   initial={{ width: 0 }}
                                   animate={{ width: `${s.balanceScore}%` }}
-                                  className={`h-full ${s.isOptimal ? 'bg-amber-500' : 'bg-indigo-400'}`}
+                                  className={cn(
+                                    "h-full rounded-full transition-all",
+                                    s.isOptimal ? "bg-indigo-600" : "bg-slate-300 group-hover:bg-slate-400"
+                                  )}
                                 />
                               </div>
-                              <span className="text-[10px] font-mono text-slate-500 w-8">{s.balanceScore.toFixed(1)}</span>
+                              <span className={cn(
+                                "text-[10px] font-mono w-8 text-right",
+                                s.isOptimal ? "text-indigo-600 font-black" : "text-slate-500"
+                              )}>
+                                {s.balanceScore.toFixed(1)}
+                              </span>
                             </div>
                           </td>
                         </tr>
@@ -266,25 +289,48 @@ export function IdealTmoAnalysis({ data }: IdealTmoAnalysisProps) {
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {summary.map(item => {
-              const tmoRatio = item.optimalRange[0] / stats.find(s => s.cola === item.cola)?.metaTmo!;
-              const npsRatio = item.npsOptimal / (item.npsMeta || 1);
+              const tmoRatio = item.metaTmo > 0 ? item.avgTmoOptimal / item.metaTmo : 1;
+              const npsRatio = item.npsMeta > 0 ? item.npsOptimal / item.npsMeta : 1;
               
               return (
-                <div key={item.cola} className="p-4 rounded-lg border border-slate-100 bg-slate-50 space-y-3">
-                  <div className="font-bold text-sm text-slate-800 truncate">{item.cola}</div>
+                <div key={item.cola} className="p-4 rounded-lg border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all space-y-3">
+                  <div className="font-bold text-sm text-slate-800 truncate border-b pb-2">{item.cola}</div>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center text-[10px]">
                       <span className="text-slate-500">TMO Ótimo / Meta:</span>
-                      <span className={`font-bold ${tmoRatio <= 1 ? 'text-emerald-600' : tmoRatio <= 1.1 ? 'text-amber-600' : 'text-rose-600'}`}>
-                        {(tmoRatio ?? 0).toFixed(2)}x
+                      <span className={cn(
+                        "font-mono font-bold",
+                        tmoRatio <= 1 ? "text-emerald-600" : "text-rose-600"
+                      )}>
+                        {tmoRatio.toFixed(2)}x
                       </span>
                     </div>
                     <div className="flex justify-between items-center text-[10px]">
                       <span className="text-slate-500">NPS Ótimo / Meta:</span>
-                      <span className={`font-bold ${npsRatio >= 1 ? 'text-emerald-600' : npsRatio >= 0.8 ? 'text-amber-600' : 'text-rose-600'}`}>
-                        {(npsRatio ?? 0).toFixed(2)}x
+                      <span className={cn(
+                        "font-mono font-bold",
+                        npsRatio >= 1 ? "text-emerald-600" : "text-rose-600"
+                      )}>
+                        {npsRatio.toFixed(2)}x
                       </span>
                     </div>
+                  </div>
+                  {/* Visual Quadrant indicator */}
+                  <div className="h-10 w-full bg-slate-50 rounded border border-slate-100 relative overflow-hidden">
+                    <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 opacity-10">
+                      <div className="bg-amber-400 border-r border-b border-white"></div>
+                      <div className="bg-emerald-400 border-b border-white"></div>
+                      <div className="bg-rose-400 border-r border-white"></div>
+                      <div className="bg-amber-400"></div>
+                    </div>
+                    <motion.div 
+                      className="absolute w-2 h-2 bg-indigo-600 rounded-full border border-white shadow-md -translate-x-1/2 -translate-y-1/2"
+                      initial={false}
+                      animate={{ 
+                        left: `${Math.min(90, Math.max(10, (1/tmoRatio) * 50))}%`, 
+                        top: `${Math.min(90, Math.max(10, (1 - npsRatio + 0.5) * 50))}%` 
+                      }}
+                    />
                   </div>
                 </div>
               );
