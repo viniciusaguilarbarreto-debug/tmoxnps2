@@ -2,7 +2,17 @@ import React, { useMemo, useState } from 'react';
 import { DashboardData, AnalysisSettings } from '../types';
 import { calculateIdealTmo, generateExecutiveSummary, TmoRangeStats, formatSeconds } from '../lib/analysis';
 import { cn } from '../lib/utils';
-import { CheckCircle2, AlertCircle, XCircle, TrendingUp, Target, BarChart3, Settings2 } from 'lucide-react';
+import { 
+  CheckCircle2, 
+  AlertCircle, 
+  XCircle, 
+  TrendingUp, 
+  Target, 
+  BarChart3, 
+  Settings2, 
+  ChevronLeft, 
+  ChevronRight 
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface IdealTmoAnalysisProps {
@@ -20,15 +30,34 @@ export function IdealTmoAnalysis({ data }: IdealTmoAnalysisProps) {
   
   const stats = useMemo(() => calculateIdealTmo(data, settings), [data, settings]);
   const summary = useMemo(() => generateExecutiveSummary(stats), [stats]);
+  const [summaryPage, setSummaryPage] = useState(1);
+  const ITEMS_PER_PAGE = 25;
 
-  const filteredSummary = selectedCola === 'ALL' 
-    ? summary 
-    : summary.filter(s => s.cola === selectedCola);
+  const filteredSummary = useMemo(() => {
+    const s = selectedCola === 'ALL' 
+      ? summary 
+      : summary.filter(s => s.cola === selectedCola);
+    return s;
+  }, [summary, selectedCola]);
+
+  const paginatedSummary = useMemo(() => {
+    const start = (summaryPage - 1) * ITEMS_PER_PAGE;
+    return filteredSummary.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredSummary, summaryPage]);
+
+  const summaryTotalPages = Math.ceil(filteredSummary.length / ITEMS_PER_PAGE);
 
   const colas = Array.from(new Set(summary.map(s => s.cola))).sort();
 
+  const [detailPages, setDetailPages] = useState<Record<string, number>>({});
+
   const handleWeightChange = (key: keyof AnalysisSettings, value: number) => {
     setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  const getDetailPage = (cola: string) => detailPages[cola] || 1;
+  const setDetailPage = (cola: string, page: number) => {
+    setDetailPages(prev => ({ ...prev, [cola]: page }));
   };
 
   return (
@@ -151,7 +180,7 @@ export function IdealTmoAnalysis({ data }: IdealTmoAnalysisProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredSummary.map((item) => (
+                {paginatedSummary.map((item) => (
                   <tr key={item.cola} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 text-sm font-bold text-slate-900">{item.cola}</td>
                     <td className="px-6 py-4">
@@ -186,22 +215,49 @@ export function IdealTmoAnalysis({ data }: IdealTmoAnalysisProps) {
               </tbody>
             </table>
           </div>
+          {summaryTotalPages > 1 && (
+            <div className="px-6 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/30">
+              <span className="text-xs text-slate-500">
+                Página {summaryPage} de {summaryTotalPages}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSummaryPage(p => Math.max(1, p - 1))}
+                  disabled={summaryPage === 1}
+                  className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 transition-colors"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  onClick={() => setSummaryPage(p => Math.min(summaryTotalPages, p + 1))}
+                  disabled={summaryPage === summaryTotalPages}
+                  className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 transition-colors"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Detailed View per COLA */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {colas.filter(c => selectedCola === 'ALL' || c === selectedCola).map(cola => {
+        {(colas as string[]).filter(c => selectedCola === 'ALL' || c === selectedCola).map((cola: string) => {
           const colaStats = stats.filter(s => s.cola === cola).sort((a, b) => a.rangeStart - b.rangeStart);
+          const currentPage = getDetailPage(cola);
+          const totalPages = Math.ceil(colaStats.length / ITEMS_PER_PAGE);
+          const paginatedStats = colaStats.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
           return (
-            <div key={cola} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div key={cola} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
               <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <BarChart3 size={18} className="text-indigo-600" />
+                  < BarChart3 size={18} className="text-indigo-600" />
                   <h3 className="font-bold text-slate-800">{cola} - Detalhe por Faixa</h3>
                 </div>
               </div>
-              <div className="p-4">
+              <div className="p-4 flex-1">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
@@ -216,7 +272,7 @@ export function IdealTmoAnalysis({ data }: IdealTmoAnalysisProps) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                      {colaStats.map((s, idx) => (
+                      {paginatedStats.map((s, idx) => (
                         <tr 
                           key={idx} 
                           className={cn(
@@ -275,6 +331,27 @@ export function IdealTmoAnalysis({ data }: IdealTmoAnalysisProps) {
                   </table>
                 </div>
               </div>
+              {totalPages > 1 && (
+                <div className="px-4 py-2 border-t border-slate-50 flex items-center justify-between bg-slate-50/50">
+                  <span className="text-[10px] text-slate-400">Pág {currentPage}/{totalPages}</span>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setDetailPage(cola, Math.max(1, currentPage - 1))}
+                      disabled={currentPage === 1}
+                      className="p-1 rounded hover:bg-slate-200 disabled:opacity-20"
+                    >
+                      <ChevronLeft size={14} />
+                    </button>
+                    <button
+                      onClick={() => setDetailPage(cola, Math.min(totalPages, currentPage + 1))}
+                      disabled={currentPage === totalPages}
+                      className="p-1 rounded hover:bg-slate-200 disabled:opacity-20"
+                    >
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}

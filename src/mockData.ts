@@ -1,7 +1,7 @@
 import { DashboardData } from './types';
 
 // Real samples from the attached base
-const SAMPLES = [
+const SAMPLES: DashboardData[] = [
   {
     CASE_ID: "447882780",
     COLA: "SECURITY_CHAT",
@@ -97,7 +97,7 @@ const generateFromSamples = (count: number): DashboardData[] => {
       ...sample,
       CASE_ID: `CS-${2000000 + i}`,
       TMO_SEC: sample.TMO_SEC + (Math.random() - 0.5) * 500,
-      PERIODO: isD1 ? "D-1" : "CONSOLIDADO",
+      PERIODO: (isD1 ? "D-1" : "CONSOLIDADO") as "D-1" | "CONSOLIDADO",
       DATA: isD1 ? "01/04/2026" : "08/04/2026", // 01/04 is mapped to D-1 in our heuristic
     });
   }
