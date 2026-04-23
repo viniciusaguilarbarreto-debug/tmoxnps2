@@ -81,7 +81,7 @@ export function FileUploader({ onDataLoaded }: FileUploaderProps) {
 
   const mapToDashboardData = (data: any[]): DashboardData[] => {
     return data.map(item => ({
-      CASE_ID: item.CASE_ID ? String(item.CASE_ID) : undefined,
+      CASE_ID: (item.CAS_CASE_ID || item.CASE_ID) ? String(item.CAS_CASE_ID || item.CASE_ID) : undefined,
       COLA: String(item.COLA || ''),
       USER_FAIXA_ORDEM: parseNum(item.USER_FAIXA_ORDEM),
       USER_FAIXA_HISTOGRAMA: String(item.USER_FAIXA_HISTOGRAMA || ''),
@@ -92,7 +92,7 @@ export function FileUploader({ onDataLoaded }: FileUploaderProps) {
       NPS_PONDERADO_PARA_PIVOT: parseNum(item.NPS_PONDERADO_PARA_PIVOT),
       META_NPS: parseNum(item.META_NPS),
       // Metadata
-      PERIODO: item.PERIODO || 'CONSOLIDADO',
+      PERIODO: item.PERIODO || (item.DATA === '01/04/2026' ? 'D-1' : 'CONSOLIDADO'), // Heuristic for period if missing
       DATA: item.DATA ? String(item.DATA) : null,
       USER_LDAP: String(item.USER_LDAP || ''),
       ASSIGN_CI_CURRENT_CHANNEL: item.ASSIGN_CI_CURRENT_CHANNEL ? String(item.ASSIGN_CI_CURRENT_CHANNEL) : undefined,

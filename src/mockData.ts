@@ -1,39 +1,108 @@
 import { DashboardData } from './types';
 
-const generateMockItem = (periodo: 'CONSOLIDADO' | 'D-1', i: number): DashboardData => {
-  const cola = ['BANKING', 'BUYERS_COMPRA', 'POS_ENTREGA_CHAT', 'PRE_ENTREGA_CHAT', 'SECURITY_CHAT'][Math.floor(Math.random() * 5)];
-  const channel = ['CHAT', 'WHATSAPP', 'VOICE'][Math.floor(Math.random() * 3)];
-  const tmoSec = Math.floor(Math.random() * 2000);
-  const metaTmo = 1700;
-  const rangeStart = Math.floor(Math.random() * 10) * 200;
-  const isFirstOfAgent = Math.random() > 0.7; // Only some cases carry NPS to avoid duplication
+// Real samples from the attached base
+const SAMPLES = [
+  {
+    CASE_ID: "447882780",
+    COLA: "SECURITY_CHAT",
+    USER_FAIXA_ORDEM: 1710,
+    USER_FAIXA_HISTOGRAMA: "1710 - 1854",
+    TMO_SEC: 1114,
+    SILENCE_DURATION_SEC: 0,
+    QTD_PESQUISAS_PARA_PIVOT: 25,
+    NPS_PONDERADO_PARA_PIVOT: 2100,
+    META: 1597,
+    META_NPS: 0.7,
+    PERIODO: "CONSOLIDADO",
+    DATA: "01/04/2026",
+    USER_LDAP: "ext_abcarlos",
+    ASSIGN_CI_CURRENT_CHANNEL: "CHAT"
+  },
+  {
+    CASE_ID: "447887181",
+    COLA: "SECURITY_CHAT",
+    USER_FAIXA_ORDEM: 1710,
+    USER_FAIXA_HISTOGRAMA: "1710 - 1854",
+    TMO_SEC: 1173,
+    SILENCE_DURATION_SEC: 0,
+    QTD_PESQUISAS_PARA_PIVOT: 0,
+    NPS_PONDERADO_PARA_PIVOT: 0,
+    META: 1597,
+    META_NPS: 0.7,
+    PERIODO: "CONSOLIDADO",
+    DATA: "01/04/2026",
+    USER_LDAP: "ext_abcarlos",
+    ASSIGN_CI_CURRENT_CHANNEL: "CHAT"
+  },
+  {
+    CASE_ID: "447891944",
+    COLA: "SECURITY_CHAT",
+    USER_FAIXA_ORDEM: 1710,
+    USER_FAIXA_HISTOGRAMA: "1710 - 1854",
+    TMO_SEC: 2877,
+    SILENCE_DURATION_SEC: 0,
+    QTD_PESQUISAS_PARA_PIVOT: 0,
+    NPS_PONDERADO_PARA_PIVOT: 0,
+    META: 1597,
+    META_NPS: 0.7,
+    PERIODO: "CONSOLIDADO",
+    DATA: "01/04/2026",
+    USER_LDAP: "ext_abcarlos",
+    ASSIGN_CI_CURRENT_CHANNEL: "CHAT"
+  },
+  {
+    CASE_ID: "447900001",
+    COLA: "SECURITY_CHAT",
+    USER_FAIXA_ORDEM: 1710,
+    USER_FAIXA_HISTOGRAMA: "1710 - 1854",
+    TMO_SEC: 3076,
+    SILENCE_DURATION_SEC: 0,
+    QTD_PESQUISAS_PARA_PIVOT: 0,
+    NPS_PONDERADO_PARA_PIVOT: 0,
+    META: 1597,
+    META_NPS: 0.7,
+    PERIODO: "CONSOLIDADO",
+    DATA: "01/04/2026",
+    USER_LDAP: "ext_abcarlos",
+    ASSIGN_CI_CURRENT_CHANNEL: "CHAT"
+  },
+  {
+    CASE_ID: "447906377",
+    COLA: "SECURITY_CHAT",
+    USER_FAIXA_ORDEM: 1710,
+    USER_FAIXA_HISTOGRAMA: "1710 - 1854",
+    TMO_SEC: 3878,
+    SILENCE_DURATION_SEC: 0,
+    QTD_PESQUISAS_PARA_PIVOT: 0,
+    NPS_PONDERADO_PARA_PIVOT: 0,
+    META: 1597,
+    META_NPS: 0.7,
+    PERIODO: "CONSOLIDADO",
+    DATA: "01/04/2026",
+    USER_LDAP: "ext_abcarlos",
+    ASSIGN_CI_CURRENT_CHANNEL: "CHAT"
+  }
+];
+
+// Generator to reach 100+ items for a better visualization
+const generateFromSamples = (count: number): DashboardData[] => {
+  const data: DashboardData[] = [];
   
-  return {
-    CASE_ID: `CS-${Math.floor(Math.random() * 9000000) + 1000000}`,
-    COLA: cola,
-    USER_FAIXA_ORDEM: rangeStart,
-    USER_FAIXA_HISTOGRAMA: `${rangeStart} - ${rangeStart + 200}`,
-    TMO_SEC: tmoSec,
-    META: metaTmo,
-    SILENCE_DURATION_SEC: Math.floor(Math.random() * 300),
-    QTD_PESQUISAS_PARA_PIVOT: isFirstOfAgent ? (Math.random() > 0.5 ? 1 : 0) : 0,
-    NPS_PONDERADO_PARA_PIVOT: isFirstOfAgent ? (Math.random() > 0.3 ? (Math.random() > 0.5 ? 100 : -100) : 0) : 0,
-    META_NPS: 0.73,
-    // Common metadata
-    PERIODO: periodo,
-    DATA: periodo === 'D-1' ? '09/04/2026' : '15/04/2026',
-    USER_LDAP: `agent_${Math.floor(Math.random() * 10)}`,
-    ASSIGN_CI_CURRENT_CHANNEL: channel,
-  };
+  // Add some D-1 data
+  for (let i = 0; i < count; i++) {
+    const sample = SAMPLES[i % SAMPLES.length];
+    const isD1 = Math.random() > 0.5;
+    
+    data.push({
+      ...sample,
+      CASE_ID: `CS-${2000000 + i}`,
+      TMO_SEC: sample.TMO_SEC + (Math.random() - 0.5) * 500,
+      PERIODO: isD1 ? "D-1" : "CONSOLIDADO",
+      DATA: isD1 ? "01/04/2026" : "08/04/2026", // 01/04 is mapped to D-1 in our heuristic
+    });
+  }
+  
+  return [...SAMPLES, ...data];
 };
 
-export const MOCK_DATA: DashboardData[] = [];
-
-// Generate 1000 items to simulate case-level data
-for (let i = 0; i < 1000; i++) {
-  MOCK_DATA.push(generateMockItem('CONSOLIDADO', i));
-}
-
-for (let i = 0; i < 400; i++) {
-  MOCK_DATA.push(generateMockItem('D-1', i));
-}
+export const MOCK_DATA: DashboardData[] = generateFromSamples(500);
